@@ -21,6 +21,13 @@ export function nextDummyId(balls){
  for(let n=DUMMY_BASE;n<LIGHT_BASE;n++)if(!used.has(n))return n
  return LIGHT_BASE-1
 }
+// `count` ids that are free right now, in [lo,hi): a batch must never hand out an id already on the table (a duplicate id makes the
+// whole state invalid on the wire), so each ball takes the next free one rather than counting up from the first.
+function freeIds(balls,lo,hi,count){
+ const used=new Set(balls.filter(isDummy).map(b=>b.n)),out=[]
+ for(let n=lo;n<hi&&out.length<count;n++)if(!used.has(n))out.push(n)
+ return out
+}
 function nextIn(balls,lo,hi){
  const used=new Set(balls.filter(isDummy).map(b=>b.n))
  for(let n=lo;n<hi;n++)if(!used.has(n))return n
@@ -44,24 +51,23 @@ export const dummyPoints=potted=>potted.filter(isDummy).length*DUMMY_POINTS
 
 // Add `count` dummies at free spots (not on another ball), using `rand` for positions. Returns the new balls.
 export function scatterDummies(balls,count,bounds,rand=Math.random){
- const {minx,maxx,miny,maxy}=bounds,out=[]
- let id=nextDummyId(balls)
- for(let tries=0;out.length<count&&tries<count*40;tries++){
+ const {minx,maxx,miny,maxy}=bounds,out=[],ids=freeIds(balls,DUMMY_BASE,LIGHT_BASE,count)
+ for(let tries=0;out.length<Math.min(count,ids.length)&&tries<count*40;tries++){
   const x=minx+rand()*(maxx-minx),y=miny+rand()*(maxy-miny)
   if([...balls,...out].some(b=>b.on&&Math.hypot(b.x-x,b.y-y)<R*2.1))continue
-  out.push(makeDummy(id++,x,y))
+  out.push(makeDummy(ids[out.length],x,y))
  }
  return out
 }
 
 // `count` dummies in a ring around (cx,cy), on free spots: a volcano's spew or a cluster breaking. Returns the new balls.
 export function scatterAround(balls,count,cx,cy,rand=Math.random,kind='dummy'){
- const out=[];let id=kind==='light'?nextIn(balls,LIGHT_BASE,HEAVY_BASE):nextDummyId(balls)
- for(let tries=0;out.length<count&&tries<count*60;tries++){
+ const out=[],ids=kind==='light'?freeIds(balls,LIGHT_BASE,HEAVY_BASE,count):freeIds(balls,DUMMY_BASE,LIGHT_BASE,count)
+ for(let tries=0;out.length<Math.min(count,ids.length)&&tries<count*60;tries++){
   const a=rand()*Math.PI*2,d=R*2.4+rand()*(24+tries*.6),x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d
   if(x<40||x>660||y<40||y>340)continue
   if([...balls,...out].some(b=>b.on&&Math.hypot(b.x-x,b.y-y)<R*2.1))continue
-  out.push(makeDummy(id++,x,y))
+  out.push(makeDummy(ids[out.length],x,y))
  }
  return out
 }

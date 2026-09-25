@@ -660,3 +660,15 @@ test('one shot per turn under 8-ball rules too',()=>{
  strike(cue,0,-1300);g.startShot();roll(g)
  assert.equal(own.on,false);assert.equal(g.score.a,10);assert.equal(g.turn,'b')
 })
+
+test('a black hole that swallows a dummy ball gives it back when it closes, and the wire accepts it while it is held',()=>{
+ const {g}=game({push:{...freshPush(),obstacles:[{t:'blackhole',x:300,y:190,r:110,held:[],ttl:5}]}});g.syncObstacles();clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=120;cue.y=330;put(g,14,190,330);put(g,15,620,300)
+ const dummy=makeDummy(104,300,192);g.balls.push(dummy)
+ strike(cue,200,0);g.startShot();roll(g,3)
+ assert.equal(dummy.on,false,'swallowed');assert.deepEqual(g.push.obstacles.find(o=>o.t==='blackhole').held,[104])
+ assert.ok(g.balls.includes(dummy),'still in the game while it is held');assert.ok(isGameMessage(snapshotOf({...g,round:1})))
+ g.push={...g.push,obstacles:g.push.obstacles.map(o=>({...o,ttl:1}))}
+ g.pushAfterShot('a',{levelUps:0,nextTurn:'b',foul:false})
+ assert.equal(dummy.on,true,'given back');assert.ok(g.balls.includes(dummy))
+})

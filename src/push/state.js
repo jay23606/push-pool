@@ -31,7 +31,7 @@ const validObstacle=o=>o&&typeof o==='object'&&Number.isInteger(o.ttl)&&o.ttl>=0
  o.t==='slick'?['x','y','r'].every(k=>fin(o[k]))&&SLICKS.includes(o.variant):
  o.t==='pswitch'?['x','y','r'].every(k=>fin(o[k])):
  o.t==='bonushole'?['x','y','r'].every(k=>fin(o[k]))&&Boolean(o.reward)&&typeof o.reward==='object'&&(o.reward.item?Boolean(ITEM_CATALOG[o.reward.item]):Number.isInteger(o.reward.gems)&&o.reward.gems>=1&&o.reward.gems<=99):
- o.t==='blackhole'&&['x','y','r'].every(k=>fin(o[k]))&&Array.isArray(o.held)&&o.held.length<=HOLE_MAX_HELD&&o.held.every(n=>Number.isInteger(n)&&n>=0&&n<=15))
+ o.t==='blackhole'&&['x','y','r'].every(k=>fin(o[k]))&&Array.isArray(o.held)&&o.held.length<=HOLE_MAX_HELD&&o.held.every(n=>Number.isInteger(n)&&n>=0&&n<=199))
 
 export function validPush(p){
  if(p===undefined||p===null)return true

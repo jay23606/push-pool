@@ -663,3 +663,14 @@ test('the help lists every power, every droppable item and every live spawn, wit
  assert.ok(by('Powers').rows.every(r=>/levels cost \d+ \/ \d+ \/ \d+/.test(r.detail)),'costs come from the catalogue')
  assert.ok(by('Items').rows.every(r=>r.detail),'every item says how it is used')
 })
+
+test('a batch of dummies never reuses an id that is already on the table, even around gaps',()=>{
+ const taken=[makeDummy(101,1,1),makeDummy(103,2,2),makeLight([],3,3),{...makeLight([],4,4),n:175}]
+ const rings=scatterAround(taken,6,300,190,seeded(2));const ids=[...taken,...rings].map(b=>b.n)
+ assert.equal(new Set(ids).size,ids.length,'ordinary dummies: all ids distinct');assert.ok(rings.every(b=>b.n>=100&&b.n<170))
+ const lights=scatterAround(taken,5,300,190,seeded(3),'light');const ids2=[...taken,...lights].map(b=>b.n)
+ assert.equal(new Set(ids2).size,ids2.length,'light dummies: all ids distinct');assert.ok(lights.every(b=>b.n>=170&&b.n<180))
+ const rain=scatterDummies(taken,8,{minx:40,maxx:660,miny:40,maxy:340},seeded(4));const ids3=[...taken,...rain].map(b=>b.n)
+ assert.equal(new Set(ids3).size,ids3.length,'a hurricane too')
+ const full=Array.from({length:70},(_,i)=>makeDummy(100+i,1,1));assert.equal(scatterAround(full,4,300,190,seeded(1)).length,0,'no free id, none made')
+})

@@ -359,7 +359,9 @@ export class PoolGame{
  pushAfterShot(shooter,v){
   if(!this.push)return
   const r=afterShot(this.push,{shooter,nextTurn:v.nextTurn,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY},rand:this.dealRand||Math.random})
-  this.balls=this.balls.filter(b=>b.k!=='dummy'||b.on)     // dummies that dropped in a pocket are gone for good
+  // dummies that dropped in a pocket are gone for good, but one a black hole is holding comes back when the hole closes
+  const held=new Set((this.push.obstacles||[]).flatMap(o=>o.held||[]))
+  this.balls=this.balls.filter(b=>b.k!=='dummy'||b.on||held.has(b.n))
   this.push=r.push;this.placing=null
   this.layTrail()
   this.syncObstacles()
