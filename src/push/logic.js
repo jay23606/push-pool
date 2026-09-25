@@ -2,7 +2,7 @@ import {R} from '../table.js'
 import {freeSpot} from './logic-spots.js'
 import {offers as makeOffers,pick,giveItem,whyNotPower,usePower} from './economy.js'
 import {dealSpawns,tickSpawns} from './spawns.js'
-import {rollGem} from './items.js'
+import {rollGem,rollItem} from './items.js'
 import {ageHazards,makeHazard,hazardOf,isHazardSpawn,HAZARD_TYPES} from './hazards.js'
 import {isArmable,powerLevel} from './powers.js'
 
@@ -107,3 +107,16 @@ export function payArmed(push,score,turn,armed){
 }
 
 export {rollGem,freeSpot}
+
+// Feats: things done in a single shot that pay a bonus, on top of the points for the balls themselves. `real` is how many
+// real balls were legally sunk and `contacts` how many different balls the cue ball touched. A foul earns nothing.
+// Returns [{id,text,points?,item?}]; the item is rolled here so the host deals it once.
+export const FEATS=[
+ {id:'double',need:s=>s.real>=2,text:'Double!',item:true},
+ {id:'triple',need:s=>s.real>=3,text:'Triple!',points:20},
+ {id:'crowd',need:s=>s.contacts>=5,text:'Five balls touched',points:15}
+]
+export function shotFeats(shot,rand=Math.random){
+ if(shot.foul)return []
+ return FEATS.filter(f=>f.need(shot)).map(f=>({id:f.id,text:f.text,...(f.points?{points:f.points}:{}),...(f.item?{item:rollItem(rand)}:{})}))
+}

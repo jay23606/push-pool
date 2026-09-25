@@ -4,12 +4,12 @@ import {integrate,railBounce,ballCollide,substeps,atRest,clearMotion,strike,shot
 import {normalizeHouse,nextBreaker,placementLimit} from './house.js'
 import {airborne} from './physics.js'
 import {drawTwist,blast,wellPull,bonusPocket,twistName} from './chaos.js'
-import {collectPickups,afterShot,choosePower,payPower,payArmed} from './push/logic.js'
+import {collectPickups,afterShot,choosePower,payPower,payArmed,shotFeats} from './push/logic.js'
 import {renderPushPanel} from './push/panel.js'
 import {powerCost,powerLevel,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS,TILT_IMPULSE,NUDGE_POWER,CANNON_MULT,POWDER_POPS,POWDER_RADIUS_R,POWDER_FORCE} from './push/powers.js'
 import {placeItem,whyNotPlace,isPlaceable,MINE_BLAST_R,MINE_BLAST_POWER} from './push/placing.js'
 import {isTossable,landing,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS} from './push/toss.js'
-import {DUMMY_POINTS,scatterDummies,scatterAround,makeDummy,nextDummyId} from './push/dummy.js'
+import {DUMMY_POINTS,scatterDummies,scatterAround,makeDummy,nextDummyId,makeRutabaga,isRutabaga} from './push/dummy.js'
 import {PIGGY_GEMS,PIGGY_R,PIGGY_LIFE,CLUSTER_SIZE} from './push/toss.js'
 import {rollGem} from './push/items.js'
 import {stepHazards,PSWITCH_GEM} from './push/hazards.js'
@@ -358,6 +358,13 @@ export class PoolGame{
   const r=afterShot(this.push,{shooter,nextTurn:v.nextTurn,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY},rand:this.dealRand||Math.random})
   this.balls=this.balls.filter(b=>b.k!=='dummy'||b.on)     // dummies that dropped in a pocket are gone for good
   this.push=r.push;this.placing=null;this.syncObstacles()
+  const feats=shotFeats({real:v.levelUps||0,contacts:this.contacts?.size||0,foul:Boolean(v.foul)})
+  for(const f of feats){
+   if(f.points)this.score={...this.score,[shooter]:(this.score[shooter]||0)+f.points}
+   if(f.item)this.push={...this.push,[shooter]:giveItem(this.push[shooter],f.item)}
+  }
+  if(feats.length)this.flash(feats.map(f=>f.text+(f.points?' +'+f.points:'')+(f.item?' · '+ITEMS[f.item].name:'')).join(' · '))
+  this.contacts=null
   // what the hazards did: a black hole that closed gives its balls back, a hurricane rains dummies
   for(const rel of r.release||[])this.releaseBall(rel)
   this.piggyTouched=null
@@ -448,6 +455,9 @@ export class PoolGame{
   }
   if(eff.kind==='cluster'){
    this.balls.push(...scatterAround(this.balls,CLUSTER_SIZE,spot.x,spot.y,Math.random));this.sync();this.flash('Cluster · five ping-pong balls');return
+  }
+  if(eff.kind==='rutabaga'){
+   const rut=makeRutabaga(this.balls,spot.x,spot.y);this.balls.push(rut);this.placeNear(rut,spot.x,spot.y);this.sync();this.flash('Rutabaga');return
   }
   if(eff.kind==='piggy'){
    const gems=PIGGY_GEMS[0]+Math.floor(Math.random()*(PIGGY_GEMS[1]-PIGGY_GEMS[0]+1)),pig={t:'bumper',x:spot.x,y:spot.y,r:PIGGY_R,piggy:gems,ttl:PIGGY_LIFE}
@@ -590,8 +600,16 @@ export class PoolGame{
  // so a rewind never gives back points or items already spent).
  shotStarted(){
   const me=this.turn,mine=this.push?.[me]
+  this.contacts=new Set()
   if(mine?.powder){this.shotFx={...this.shotFx,powder:true};this.powders=0;this.push={...this.push,[me]:{...mine,powder:false}}}
   this.undo=JSON.parse(JSON.stringify({balls:this.balls,score:this.score,push:this.push,turn:this.turn,ballInHand:this.ballInHand,breakShot:this.breakShot}))
+ }
+ // A rutabaga makes collisions unstable: whatever it hits, both balls leave at a slightly random angle.
+ wobble(a,b){
+  for(const q of [a,b]){
+   const th=(Math.random()-.5)*.8,c=Math.cos(th),s=Math.sin(th),vx=q.vx,vy=q.vy
+   q.vx=vx*c-vy*s;q.vy=vx*s+vy*c
+  }
  }
  powderPop(a,b){
   if((this.powders||0)>=POWDER_POPS)return
@@ -678,6 +696,10 @@ export class PoolGame{
     if(this.fx&&this.fx.type==='bomb'&&!this.fx.spent&&(a.n===this.fx.n||b.n===this.fx.n))this.explode()
     if(this.shotFx&&(a.k==='cue'||b.k==='cue'))this.popped()
     if(this.shotFx?.powder)this.powderPop(a,b)
+    if(this.mode==='push'){
+     if(a.k==='cue')(this.contacts??=new Set()).add(b.n);else if(b.k==='cue')(this.contacts??=new Set()).add(a.n)
+     if(isRutabaga(a)||isRutabaga(b))this.wobble(a,b)
+    }
    }
   }}
  pottedMessage(b){

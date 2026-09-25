@@ -1,4 +1,4 @@
-import {W,H,R,PR,POCKETS,COLORS,DUMMY_COLOR,GEM_COLOR,ITEM_COLOR} from './table.js'
+import {W,H,R,PR,POCKETS,COLORS,DUMMY_COLOR,RUT_COLOR,GEM_COLOR,ITEM_COLOR} from './table.js'
 import {shapeOf,RANGE} from './push/placing.js'
 import {TOSS_RANGE,scatterAt} from './push/toss.js'
 import {ITEMS} from './push/items.js'
@@ -21,7 +21,7 @@ const tx=x=>x-W/2, tz=y=>y-H/2   // table coords -> world (y is up)
 function ballTexture(THREE,kind,n){
  const TW=512,TH=256,cap=.085,c=document.createElement('canvas');c.width=TW;c.height=TH
  const g=c.getContext('2d'),white='#f7f4e9',col=COLORS[n]
- if(kind==='dummy'){g.fillStyle=DUMMY_COLOR;g.fillRect(0,0,TW,TH)}
+  if(kind==='dummy'){g.fillStyle=n>=190?RUT_COLOR:DUMMY_COLOR;g.fillRect(0,0,TW,TH)}
  else if(kind==='cue'){g.fillStyle='#f2efe4';g.fillRect(0,0,TW,TH);g.fillStyle='#b83232';for(const[u,v]of[[.25,.5],[.75,.5],[.5,.28],[.0,.72]]){g.beginPath();g.arc(u*TW,v*TH,9,0,7);g.fill()}}
  else{
   g.fillStyle=white;g.fillRect(0,0,TW,TH)

@@ -386,7 +386,7 @@ test('toss rules: held, tossable, cue ball on the table; the item is used up',()
  assert.equal(whyNotToss(h,'a','bomb',c),null);assert.equal(whyNotToss(h,'a','wall',c),'not-tossable');assert.equal(whyNotToss(holding(),'a','bomb',c),'not-held')
  assert.equal(whyNotToss(h,'a','bomb',{cue:{...cueAt(1,1),on:false}}),'no-cue')
  assert.deepEqual(tossItem(h,'a','bomb',c).a.items,['wall']);assert.equal(tossItem(h,'a','wall',c),h)
- assert.deepEqual(TOSSABLE,['bomb','mortar','smokebomb','cluster','piggybank'])
+ assert.deepEqual(TOSSABLE,['bomb','mortar','smokebomb','cluster','piggybank','rutabaga'])
 })
 
 test('a bomb skids on where it landed, a mortar goes off exactly there, and smoke is a cloud that lasts a few turns',()=>{
@@ -532,4 +532,26 @@ test('the cluster and the piggy bank are tossable, and piggy state is validated'
  assert.ok(EFFECTS.cluster&&EFFECTS.piggybank)
  assert.ok(validPush({...withPush(),obstacles:[{t:'bumper',x:1,y:1,r:11,piggy:30,ttl:5}]}))
  assert.equal(validPush({...withPush(),obstacles:[{t:'bumper',x:1,y:1,r:11,piggy:1000,ttl:5}]}),false)
+})
+
+// ---- rutabaga, dummy ids and feats ----
+import {nextRutabagaId,makeRutabaga,isRutabaga,RUTABAGA_BASE} from '../src/push/dummy.js'
+import {shotFeats,FEATS} from '../src/push/logic.js'
+
+test('dummy ids reuse the smallest free number, stay below the rutabaga range, and rutabagas have their own',()=>{
+ const balls=[makeDummy(100,1,1),makeDummy(102,2,2)]
+ assert.equal(nextDummyId(balls),101,'a gap is filled first')
+ const full=Array.from({length:RUTABAGA_BASE-100},(_,i)=>makeDummy(100+i,1,1));assert.ok(nextDummyId(full)<RUTABAGA_BASE,'never strays into the rutabaga ids')
+ assert.equal(nextRutabagaId([]),RUTABAGA_BASE);const r=makeRutabaga([],10,10);assert.ok(isRutabaga(r));assert.equal(r.k,'dummy');assert.ok(!isRutabaga(makeDummy(100,1,1)))
+ assert.equal(nextRutabagaId([r]),RUTABAGA_BASE+1)
+ assert.ok(isGameMessage(snap([r])),'a rutabaga is an ordinary dummy on the wire')
+})
+
+test('feats: a double earns an item, a triple points, five contacts points; a foul earns nothing',()=>{
+ assert.deepEqual(shotFeats({real:1,contacts:1,foul:false}),[])
+ const d=shotFeats({real:2,contacts:2,foul:false},seeded(1));assert.equal(d.length,1);assert.equal(d[0].id,'double');assert.ok(ITEMS[d[0].item])
+ const t=shotFeats({real:3,contacts:2,foul:false},seeded(1));assert.deepEqual(t.map(f=>f.id),['double','triple']);assert.ok(t[1].points>0)
+ assert.deepEqual(shotFeats({real:0,contacts:5,foul:false}).map(f=>f.id),['crowd'])
+ assert.deepEqual(shotFeats({real:3,contacts:6,foul:true}),[])
+ assert.ok(FEATS.every(f=>f.text))
 })

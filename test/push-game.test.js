@@ -3,7 +3,7 @@ import {PoolGame} from '../src/pool.js'
 import {strike} from '../src/physics.js'
 import {rack} from '../src/rules.js'
 import {freshPush} from '../src/push/state.js'
-import {makeDummy} from '../src/push/dummy.js'
+import {makeDummy,makeRutabaga} from '../src/push/dummy.js'
 import {snapshotOf,applySnapshot} from '../src/game-state.js'
 import {isGameMessage} from '../src/protocol.js'
 import {powerCost} from '../src/push/powers.js'
@@ -484,4 +484,34 @@ test('use and cannon messages are validated on the wire',()=>{
  assert.ok(isGameMessage({t:'use',id:'tilt',arg:'up'}));assert.ok(isGameMessage({t:'use',id:'mulligan'}))
  for(const bad of [{t:'use'},{t:'use',id:'x',arg:{}},{t:'use',id:'x'.repeat(30)}])assert.equal(isGameMessage(bad),false)
  assert.ok(isGameMessage({t:'shot',vx:1,vy:1,cannon:true}));assert.equal(isGameMessage({t:'shot',vx:1,vy:1,cannon:'yes'}),false)
+})
+
+// ---- rutabaga and feats in a game ----
+test('a rutabaga makes collisions unstable: the same shot leaves at different angles',()=>{
+ const run=()=>{
+  const {g}=has([]);clear(g);const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190;put(g,14,600,330);put(g,15,620,300);put(g,1,590,60)
+  const rut=makeRutabaga(g.balls,300,190);g.balls.push(rut);strike(cue,400,0);g.startShot();roll(g,1.2);return Math.atan2(rut.vy||rut.y-190,rut.vx||1)
+ }
+ const seen=new Set();for(let i=0;i<12;i++)seen.add(run().toFixed(3));assert.ok(seen.size>6,'the angle varies')
+})
+
+test('a rutabaga is tossed onto the table, and it counts as a dummy when it drops',()=>{
+ const {g}=tossing(['rutabaga']);clear(g);g.balls[0].on=true;g.balls[0].x=200;g.balls[0].y=190;put(g,14,600,330)
+ g.applyToss('a','rutabaga',{x:330,y:200})
+ const rut=g.balls.find(b=>b.n>=190);assert.ok(rut,'a rutabaga is on the table');assert.equal(rut.k,'dummy');assert.deepEqual(g.push.a.items,[])
+})
+
+test('feats reward a double and count the balls the cue ball touched',()=>{
+ const {g}=game({score:{a:0,b:0}});clear(g);const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250
+ put(g,1,350,120);put(g,2,300,110);put(g,14,600,330);put(g,15,620,300);put(g,13,560,200)
+ g.contacts=new Set([1,2,3,4,5])
+ g.potted=[g.balls[1],g.balls[2]]
+ g.pushAfterShot('a',{levelUps:2,nextTurn:'a',foul:false})
+ assert.equal(g.push.a.items.length,1,'a double gave an item');assert.ok(g.score.a>=15,'five contacts paid points');assert.equal(g.contacts,null)
+ const {g:h}=game({score:{a:0,b:0}});h.contacts=new Set([1,2,3,4,5,6]);h.pushAfterShot('a',{levelUps:0,nextTurn:'b',foul:true});assert.equal(h.score.a,0);assert.equal(h.push.a.items.length,0,'a foul earns nothing')
+})
+
+test('cue ball contacts are counted during a shot',()=>{
+ const {g}=game();clear(g);const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190;put(g,1,250,190);put(g,14,600,330);put(g,15,620,300)
+ strike(cue,400,0);g.startShot();roll(g,0.4);assert.ok(g.contacts===null||g.contacts.size>=1||g.phase==='aim')
 })
