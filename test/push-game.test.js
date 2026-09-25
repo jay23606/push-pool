@@ -550,3 +550,15 @@ test('an unarmed shot leaves no trail, and the trail choice travels with a guest
  host.receive({t:'shot',vx:350,vy:0,spin:[0,0],powers:{trail:1},tv:'sand'});roll(host,6)
  assert.ok(host.push.obstacles.some(o=>o.t==='slick'&&o.variant==='sand'),'the host laid the sand trail');assert.equal(host.score.b<99,true,'and charged for it')
 })
+
+// ---- the AI in a game ----
+test('the AI opponent throws its bomb before it shoots, and takes the shot once the table settles',()=>{
+ const {g}=game({practice:true,hotSeat:false,turn:'b',me:'a',aiLevel:'league',score:{a:0,b:0},push:{...freshPush(),b:{powers:{},items:['mortar'],picks:0}}})
+ const realRandom=Math.random;Math.random=()=>0
+ try{
+  clear(g);const cue=g.balls[0];cue.on=true;cue.x=150;cue.y=190
+  put(g,1,300,190);put(g,2,318,200);put(g,3,306,216);put(g,14,600,330)
+  g.aiShot()
+  assert.equal(g.tossing,true,'it threw first');assert.deepEqual(g.push.b.items,[])
+ }finally{Math.random=realRandom}
+})

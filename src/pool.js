@@ -12,6 +12,7 @@ import {isTossable,landing,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS} from './p
 import {DUMMY_POINTS,scatterDummies,scatterAround,makeDummy,nextDummyId,makeRutabaga,isRutabaga} from './push/dummy.js'
 import {PIGGY_GEMS,PIGGY_R,PIGGY_LIFE,CLUSTER_SIZE} from './push/toss.js'
 import {rollGem} from './push/items.js'
+import {planUses} from './push/ai.js'
 import {stepHazards,PSWITCH_GEM} from './push/hazards.js'
 import {giveItem,useItem} from './push/economy.js'
 import {freeSpot} from './push/logic-spots.js'
@@ -810,12 +811,22 @@ export class PoolGame{
  }
  aiShot(){
   if(this.phase!=='aim'||this.over)return
+  // P.U.S.H. Pool: the AI may throw something, light powder or arm a power first. A toss settles and then asks for the shot again.
+  const armed={}
+  if(this.mode==='push'&&this.push&&this.turn==='b'){
+   for(const act of planUses(this.push,this.score,'b',this.balls)){
+    if(act.kind==='toss'){this.applyToss('b',act.item,act.target);if(this.tossing)return}
+    else if(act.kind==='use')this.applyUse('b',act.id)
+    else if(act.kind==='arm')armed[act.id]=act.level
+   }
+  }
  const plan=chooseShot(this.balls,this.group('b'),this.ballInHand,this.aiLevel,this.mode,{player:'b',limitX:placementLimit(this.house)})
  if(!plan)return
  if(plan.place){this.ballInHand=false;this.placed=false}
   // The planner may receive old room state; never show an 8-ball call unless
   // the live game state confirms the AI has cleared its own group.
   if(this.eightGame()&&plan.pocket!=null&&this.remaining(this.group('b'))===0)this.calledPocket=plan.pocket
+  if(Object.keys(armed).length)this.applyArmed(armed,{})
   this.startShot()
   const s=shotSpeed(plan.power)
   strike(this.balls[0],Math.cos(plan.angle)*s,Math.sin(plan.angle)*s)

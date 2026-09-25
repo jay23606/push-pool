@@ -555,3 +555,28 @@ test('feats: a double earns an item, a triple points, five contacts points; a fo
  assert.deepEqual(shotFeats({real:3,contacts:6,foul:true}),[])
  assert.ok(FEATS.every(f=>f.text))
 })
+
+// ---- the practice opponent's use of powers and items ----
+import {planUses,thickestCluster} from '../src/push/ai.js'
+const ball=(n,x,y)=>({n,k:'solid',on:true,x,y})
+
+test('the AI picks the thickest cluster it can reach, and ignores dummies, the cue ball and what is out of range',()=>{
+ const cue=cueAt(100,190)
+ const balls=[cue,ball(1,300,190),ball(2,320,200),ball(3,310,215),ball(4,320,230),ball(5,250,60),makeDummy(100,300,195),ball(6,900,190)]
+ const c=thickestCluster(balls,cue);assert.ok(c.count>=4);assert.ok(Math.hypot(c.target.x-310,c.target.y-210)<40)
+ assert.equal(thickestCluster([cue,ball(1,900,190)],cue),null,'nothing within a toss')
+ assert.equal(thickestCluster([cue,makeDummy(100,200,190)],cue),null)
+})
+
+test('the AI throws a mortar or bomb at a cluster, lights powder, arms pop when it can afford it, and does nothing empty-handed',()=>{
+ const cue=cueAt(100,190),balls=[cue,ball(1,300,190),ball(2,320,200),ball(3,310,215)]
+ const rich=withPush({b:{powers:{pop:1,cute:1},items:['mortar','poppowder'],picks:0}})
+ const acts=planUses(rich,{a:0,b:200},'b',balls,()=>0)
+ assert.equal(acts[0].kind,'toss');assert.equal(acts[0].item,'mortar');assert.equal(acts.length,1,'a toss ends the plan: it settles first')
+ const noBombs=withPush({b:{powers:{pop:1,cute:1},items:['poppowder'],picks:0}})
+ const a2=planUses(noBombs,{a:0,b:200},'b',balls,()=>0);assert.deepEqual(a2.map(x=>x.kind+':'+(x.id||'')),['use:poppowder','arm:pop','arm:cute'])
+ assert.deepEqual(planUses(noBombs,{a:0,b:30},'b',balls,()=>0).filter(x=>x.kind==='arm'),[],'too poor to arm')
+ assert.deepEqual(planUses(withPush(),{a:0,b:200},'b',balls,()=>0),[])
+ assert.deepEqual(planUses(rich,{a:0,b:200},'b',balls,()=>.99),[],'and only sometimes')
+ assert.deepEqual(planUses(rich,{a:0,b:200},'b',[{...cue,on:false},...balls.slice(1)],()=>0),[])
+})
