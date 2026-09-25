@@ -63,7 +63,7 @@ test('the share text says how it went, and does not claim more than happened',()
  assert.match(shareText(12,3,{done:true,best:4}),/★★★\nPotted it in 4 tries/)
  assert.match(shareText(12,1,{done:true,best:null}),/with a little help/)
  assert.match(shareText(12,1,undefined),/Still working on it/)
- assert.match(shareText(12,1,{done:true,best:1}),/https:\/\/jay23606\.github\.io\/pool-masters\/$/)
+ assert.match(shareText(12,1,{done:true,best:1}),/https:\/\/jay23606\.github\.io\/push-pool\/$/)
 })
 
 test('only solved daily shots count, and practice drills are not daily shots',()=>{

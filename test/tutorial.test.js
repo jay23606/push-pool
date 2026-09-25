@@ -28,7 +28,7 @@ test('the steps run in order, the last one has no next, and out-of-range asks ar
 test('it is offered to a new player once, and never again after they finish or decline',()=>{
  assert.equal(shouldOffer(null),true);assert.equal(shouldOffer(undefined),true);assert.equal(shouldOffer(''),true)
  assert.equal(shouldOffer('done'),false);assert.equal(shouldOffer('skipped'),false)
- assert.match(DONE_KEY,/^pool-masters:/)
+ assert.match(DONE_KEY,/^push-pool:/)
 })
 
 test('the lobby is grouped, every control keeps one id, and nothing the code binds went missing',()=>{

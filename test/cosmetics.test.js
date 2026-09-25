@@ -59,5 +59,5 @@ test('the new choices survive the preferences boundary, and junk does not',()=>{
  const saved=saveTablePrefs({...loadTablePrefs({getItem:()=>null}),cue:'galaxy',rails:'cherry',felt:FELTS.ice},st)
  assert.deepEqual([saved.cue,saved.rails,saved.felt],['galaxy','cherry',FELTS.ice])
  assert.equal(loadTablePrefs(st).rails,'cherry')
- assert.equal(loadTablePrefs({getItem:k=>k==='pool-masters:rails'?'plastic':null}).rails,'walnut')
+ assert.equal(loadTablePrefs({getItem:k=>k==='push-pool:rails'?'plastic':null}).rails,'walnut')
 })

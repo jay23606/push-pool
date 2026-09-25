@@ -18,7 +18,7 @@ export function createViewManager(deps){
  // New storage key: the old one was written on every load rather than on a
  // deliberate switch, so a value stored under it said nothing about what the
  // player actually chose.
- const stored=localStorage.getItem('pool-masters:table-view')
+ const stored=localStorage.getItem('push-pool:table-view')
  const view={mode:VIEWS.includes(stored)?stored:'top',renderer:null,switching:false}
  const cameraFor=m=>m==='3d'?'angled':'top'
 
@@ -58,7 +58,7 @@ export function createViewManager(deps){
    $('#table').hidden=r.mode!=='2d';$('#table3d').hidden=r.mode!=='3d'
    $('#view-3d').textContent=VIEW_LABEL[view.mode]
    $('#view-3d').classList.toggle('on',r.mode==='3d')
-   if(persist)localStorage.setItem('pool-masters:table-view',view.mode)
+   if(persist)localStorage.setItem('push-pool:table-view',view.mode)
    r.resize()
   }finally{view.switching=false}
  }

@@ -14,7 +14,7 @@ export const STEPS=[
   text:'A ball can bounce off a cushion. Aim the ball at the rail, not at the pocket; the bent line shows the bank. Stuck? Press Show me.'}
 ]
 
-export const DONE_KEY='pool-masters:tutorial'
+export const DONE_KEY='push-pool:tutorial'
 export const stepAt=i=>Number.isInteger(i)&&i>=0&&i<STEPS.length?STEPS[i]:null
 export const hasNext=i=>Number.isInteger(i)&&i>=0&&i<STEPS.length-1
 export const label=i=>`TUTORIAL ${i+1} OF ${STEPS.length}`

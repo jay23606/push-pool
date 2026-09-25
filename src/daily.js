@@ -9,7 +9,7 @@ import {DAILY} from './daily-data.js'
 
 export const EPOCH=Date.UTC(2026,0,1)
 const DAY=86400000
-const SITE='https://jay23606.github.io/pool-masters/'
+const SITE='https://jay23606.github.io/push-pool/'
 
 // Day number 1 is 1 January 2026, by the player's own calendar.
 export const dayNumber=(d=new Date())=>Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-EPOCH)/DAY)+1

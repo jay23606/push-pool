@@ -43,12 +43,12 @@ const sb=createClient(SUPABASE_URL,SUPABASE_KEY)
 const foyer=createFoyer({supabase:sb,url:SUPABASE_URL,anonKey:SUPABASE_KEY,hostMigration:false,peerGraceMs:25000,reconnectAttempts:5,heartbeatMs:15000,staleSeconds:180})
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 const state={room:null,net:null,peers:new Map(),game:null,media:null,unsubs:[],mode:'lobby',opponent:null,role:'pending',rankings:[],profile:null,matchScore:emptyScore(),saveTimer:null,pendingSave:null,lastSave:0}
-document.documentElement.dataset.theme=localStorage.getItem('pool-masters:theme')||'dark'
+document.documentElement.dataset.theme=localStorage.getItem('push-pool:theme')||'dark'
 const sfx=createSfx()
 const music=createMusic()
-sfx.setEnabled(localStorage.getItem('pool-masters:muted')!=='1')
-sfx.setHaptics(localStorage.getItem('pool-masters:haptics')!=='0')
-music.setVolume(localStorage.getItem('pool-masters:music-volume')||.2)
+sfx.setEnabled(localStorage.getItem('push-pool:muted')!=='1')
+sfx.setHaptics(localStorage.getItem('push-pool:haptics')!=='0')
+music.setVolume(localStorage.getItem('push-pool:music-volume')||.2)
 // an AudioContext may only start from a gesture, so take the first one going
 addEventListener('pointerdown',()=>{sfx.resume();music.resume()},{once:true})
 const tablePrefs=loadTablePrefs()
@@ -74,38 +74,38 @@ const viewManager=createViewManager({$,tablePrefs,toast,
 const {view,ensureRenderer,applyTablePrefs}=viewManager
 async function boot(){
  paintTrophies()
- let name=localStorage.getItem('pool-masters:name')||''
- if(!name){name=`Player ${Math.floor(100+Math.random()*900)}`;localStorage.setItem('pool-masters:name',name)}
+ let name=localStorage.getItem('push-pool:name')||''
+ if(!name){name=`Player ${Math.floor(100+Math.random()*900)}`;localStorage.setItem('push-pool:name',name)}
  await foyer.signIn(name); $('#edit-name').textContent=foyer.player.name; await ensureLeagueProfile(); bind(); await ensureRenderer(); await refresh();
  const params=new URLSearchParams(location.search),shared=params.get('replay'),code=params.get('room'),puzzle=params.get('puzzle')
  if(shared)await openReplay(shared);else if(puzzle)await openPuzzle(puzzle);else if(code)await joinRoom(code)
 }
 async function ensureLeagueProfile(){
- await sb.rpc('pm_upsert_profile',{p_username:foyer.player.name})
- const {data}=await sb.from('pm_profiles').select('*').eq('id',foyer.player.id).single();state.profile=data;renderIdentity();checkTrophies()
+ await sb.rpc('pp_upsert_profile',{p_username:foyer.player.name})
+ const {data}=await sb.from('pp_profiles').select('*').eq('id',foyer.player.id).single();state.profile=data;renderIdentity();checkTrophies()
 }
 function renderIdentity(){const p=state.profile;$('#edit-name').textContent=p?.username||foyer.player.name;$('#mini-rating').textContent=p?`${p.rating} Elo · ${p.wins}W ${p.losses}L`:''}
-async function showStats(){const p=state.profile;if(!p)return;const perf=performance(),games=p.wins+p.losses,rate=games?Math.round(p.wins/games*100):0,summary=`<div class="stat-grid"><b>${p.rating}<small>Elo</small></b><b>${p.wins}–${p.losses}<small>Wins · losses</small></b><b>${rate}%<small>Win rate</small></b><b>${p.current_streak||0}<small>Current streak</small></b><b>${p.best_streak||0}<small>Best streak</small></b><b>${perf.breakRuns||0}<small>Break & runs</small></b></div>`,tables=[7,8,9].map(size=>{const r=tableRecord(perf,size);return `<li>${size} ft <small>${r.wins}W · ${r.losses}L · ${r.rate}%</small></li>`}).join('');$('#stats-body').innerHTML=summary+`<h3>By table size</h3><ul class="recent-results">${tables}</ul><p class="empty">Loading recent ranked racks…</p>`;$('#stats-dialog').showModal();const {data,error}=await sb.from('pm_matches').select('winner_id,created_at').or(`winner_id.eq.${foyer.player.id},loser_id.eq.${foyer.player.id}`).order('created_at',{ascending:false}).limit(8);if(error)return;const recent=(data||[]).map(m=>`<li class="${m.winner_id===foyer.player.id?'won':'lost'}">${m.winner_id===foyer.player.id?'Won':'Lost'} <small>${new Date(m.created_at).toLocaleDateString()}</small></li>`).join('');$('#stats-body').innerHTML=summary+`<h3>By table size</h3><ul class="recent-results">${tables}</ul><h3>Recent ranked racks</h3>${recent?`<ul class="recent-results">${recent}</ul>`:'<p class="empty">No ranked racks recorded yet.</p>'}`}
-function performance(){try{return JSON.parse(localStorage.getItem('pool-masters:performance'))||emptyPerformance()}catch{return emptyPerformance()}}
+async function showStats(){const p=state.profile;if(!p)return;const perf=performance(),games=p.wins+p.losses,rate=games?Math.round(p.wins/games*100):0,summary=`<div class="stat-grid"><b>${p.rating}<small>Elo</small></b><b>${p.wins}–${p.losses}<small>Wins · losses</small></b><b>${rate}%<small>Win rate</small></b><b>${p.current_streak||0}<small>Current streak</small></b><b>${p.best_streak||0}<small>Best streak</small></b><b>${perf.breakRuns||0}<small>Break & runs</small></b></div>`,tables=[7,8,9].map(size=>{const r=tableRecord(perf,size);return `<li>${size} ft <small>${r.wins}W · ${r.losses}L · ${r.rate}%</small></li>`}).join('');$('#stats-body').innerHTML=summary+`<h3>By table size</h3><ul class="recent-results">${tables}</ul><p class="empty">Loading recent ranked racks…</p>`;$('#stats-dialog').showModal();const {data,error}=await sb.from('pp_matches').select('winner_id,created_at').or(`winner_id.eq.${foyer.player.id},loser_id.eq.${foyer.player.id}`).order('created_at',{ascending:false}).limit(8);if(error)return;const recent=(data||[]).map(m=>`<li class="${m.winner_id===foyer.player.id?'won':'lost'}">${m.winner_id===foyer.player.id?'Won':'Lost'} <small>${new Date(m.created_at).toLocaleDateString()}</small></li>`).join('');$('#stats-body').innerHTML=summary+`<h3>By table size</h3><ul class="recent-results">${tables}</ul><h3>Recent ranked racks</h3>${recent?`<ul class="recent-results">${recent}</ul>`:'<p class="empty">No ranked racks recorded yet.</p>'}`}
+function performance(){try{return JSON.parse(localStorage.getItem('push-pool:performance'))||emptyPerformance()}catch{return emptyPerformance()}}
 const playing=()=>Boolean(state.game)&&(state.mode==='practice'||(state.mode==='online'&&(state.role==='host'||state.role==='player')))
-function recordRackPerformance(result){const game=state.game;if(!playing())return;const won=result.winner===game.me,breakRun=won&&result.winner==='a'&&game.shots?.b===0;localStorage.setItem('pool-masters:performance',JSON.stringify(recordPerformance(performance(),{won,breakRun,tableSize:tablePrefs.size})))}
+function recordRackPerformance(result){const game=state.game;if(!playing())return;const won=result.winner===game.me,breakRun=won&&result.winner==='a'&&game.shots?.b===0;localStorage.setItem('push-pool:performance',JSON.stringify(recordPerformance(performance(),{won,breakRun,tableSize:tablePrefs.size})))}
 async function refresh(){
- const [rooms,leaders]=await Promise.all([foyer.listRooms(),sb.from('pm_profiles').select('id,username,rating,wins,losses,current_streak').gt('wins','0').order('rating',{ascending:false}).limit(10)])
- state.rankings=leaders.data||[];renderRooms(rooms.filter(r=>r.metadata?.game==='pool'));renderLeaders()
+ const [rooms,leaders]=await Promise.all([foyer.listRooms(),sb.from('pp_profiles').select('id,username,rating,wins,losses,current_streak').gt('wins','0').order('rating',{ascending:false}).limit(10)])
+ state.rankings=leaders.data||[];renderRooms(rooms.filter(r=>r.metadata?.game==='push'));renderLeaders()
 }
 function renderRooms(rooms){$('#rooms').innerHTML=rooms.length?rooms.map(r=>`<div class="room"><button data-code="${r.code}"><span><b>${esc(r.name||r.hostName+"'s table")}</b><small>${esc(r.hostName)} · ${MODES[modeOf(r.metadata?.mode)].label} · ${occupancyLabel(r)}</small></span><strong>${r.code}</strong></button><button class="watch" data-watch="${r.code}">Watch</button></div>`).join(''):'<div class="empty">No open tables yet.<br>Create one or practice while you wait.</div>'}
 function renderLeaders(){const rows=state.rankings;$('#leaders').innerHTML=rows.length?rows.map((p,i)=>`<div class="leader"><i>${i+1}</i><span>${esc(p.username)}</span><b>${p.rating} Elo</b><small>${p.wins}W · ${p.losses}L<br>${p.wins+p.losses?Math.round(p.wins/(p.wins+p.losses)*100):0}% wins</small></div>`).join(''):'<div class="empty">The first match sets the board.</div>'}
 function bind(){
  const paintTheme=()=>{$('#theme-toggle').textContent=document.documentElement.dataset.theme==='dark'?'☼':'☾'}
  paintTheme()
- $('#theme-toggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('pool-masters:theme',next);paintTheme()}
+ $('#theme-toggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('push-pool:theme',next);paintTheme()}
  $('#home').onclick=()=>leaveRoom();$('#leave').onclick=()=>leaveRoom();$('#refresh').onclick=refresh
- $('#create').onclick=createRoom;$('#quick').onclick=quickPlay;$('#practice').onclick=()=>startPractice($('#ai-level').value);$('#hotseat').onclick=()=>startHotSeat();$('#rogue').onclick=()=>startRogue();$('#house').onclick=openHouse;$('#challenges').onclick=openChallenges;$('#career').onclick=openCareer;$('#game-mode').value=modeOf(localStorage.getItem('pool-masters:game-mode'));$('#game-mode').onchange=e=>localStorage.setItem('pool-masters:game-mode',e.target.value);$('#obstacles').value=isObstaclePreset(localStorage.getItem('pool-masters:obstacles'))?localStorage.getItem('pool-masters:obstacles')||'':'';$('#obstacles').onchange=e=>localStorage.setItem('pool-masters:obstacles',e.target.value);$('#ai-level').value=localStorage.getItem('pool-masters:ai-level')||'league';$('#ai-level').onchange=e=>localStorage.setItem('pool-masters:ai-level',e.target.value);$('#join').onclick=()=>joinRoom($('#code').value)
+ $('#create').onclick=createRoom;$('#quick').onclick=quickPlay;$('#practice').onclick=()=>startPractice($('#ai-level').value);$('#hotseat').onclick=()=>startHotSeat();$('#rogue').onclick=()=>startRogue();$('#house').onclick=openHouse;$('#challenges').onclick=openChallenges;$('#career').onclick=openCareer;$('#game-mode').value=modeOf(localStorage.getItem('push-pool:game-mode'));$('#game-mode').onchange=e=>localStorage.setItem('push-pool:game-mode',e.target.value);$('#obstacles').value=isObstaclePreset(localStorage.getItem('push-pool:obstacles'))?localStorage.getItem('push-pool:obstacles')||'':'';$('#obstacles').onchange=e=>localStorage.setItem('push-pool:obstacles',e.target.value);$('#ai-level').value=localStorage.getItem('push-pool:ai-level')||'league';$('#ai-level').onchange=e=>localStorage.setItem('push-pool:ai-level',e.target.value);$('#join').onclick=()=>joinRoom($('#code').value)
  $('#code').oninput=e=>e.target.value=e.target.value.toUpperCase().replace(/[^A-Z2-9]/g,'');$('#rooms').onclick=e=>{const b=e.target.closest('[data-code]'),watch=e.target.closest('[data-watch]');if(watch)joinRoom(watch.dataset.watch,'spectator');else if(b)joinRoom(b.dataset.code)}
  $('#spectator-requests').onclick=async e=>{const admit=e.target.closest('[data-admit]'),remove=e.target.closest('[data-remove]');if(!state.room?.isHost)return;if(admit){await state.room.update({metadata:admitSpectator(state.room.metadata,admit.dataset.admit)});toast('Spectator admitted')}if(remove){await state.room.update({metadata:removeSpectator(state.room.metadata,remove.dataset.remove)});await state.room.kick(remove.dataset.remove);toast('Spectator removed')}}
  $('#edit-name').onclick=()=>{$('#name').value=foyer.player.name;$('#name-dialog').showModal()}
  $('#player-stats').onclick=showStats
- $('#save-name').onclick=async e=>{e.preventDefault();const n=$('#name').value.trim().slice(0,24);if(!n)return;await foyer.signIn(n);localStorage.setItem('pool-masters:name',n);await ensureLeagueProfile();$('#name-dialog').close();toast('Name saved')}
+ $('#save-name').onclick=async e=>{e.preventDefault();const n=$('#name').value.trim().slice(0,24);if(!n)return;await foyer.signIn(n);localStorage.setItem('push-pool:name',n);await ensureLeagueProfile();$('#name-dialog').close();toast('Name saved')}
  $('#rename-room').onclick=()=>{if(!state.room?.isHost)return;$('#room-name').value=state.room.name||'';$('#room-dialog').showModal()}
  $('#save-room-name').onclick=async e=>{e.preventDefault();const name=$('#room-name').value.trim().slice(0,48);if(!name||!state.room?.isHost)return;try{await state.room.update({name});$('#room-label').textContent=name;$('#room-dialog').close();toast('Table name saved')}catch(err){toast(err.message||'Could not rename table')}}
  $('#next-rack').onclick=()=>{state.game?.requestRack();$('#next-rack').hidden=true}
@@ -147,15 +147,15 @@ function bind(){
  }
  $('#table-settings').onclick=()=>{paintCosmetics();$('#rails').value=usable('rails',tablePrefs.rails,loadUnlocked());$('#table-size').value=tablePrefs.size;$('#felt').value=Object.entries(FELTS).find(([,v])=>v===tablePrefs.felt)?.[0]||'green';$('#cue-finish').value=tablePrefs.cue;$('#lighting').value=tablePrefs.lighting;$('#aim-sensitivity').value=Math.round(tablePrefs.aimSensitivity*100);$('#aim-sensitivity-out').textContent=`${$('#aim-sensitivity').value}%`;$('#haptics').checked=sfx.haptics;$('#shot-cam').checked=tablePrefs.shotCam!==false;$('#snap-aim').checked=tablePrefs.snap!==false;$('#eye-height').value=tablePrefs.eyeHeight;$('#eye-height-out').textContent=eyeLabel(tablePrefs.eyeHeight);$('#table-dialog').showModal()}
  $('#aim-sensitivity').oninput=e=>$('#aim-sensitivity-out').textContent=`${e.target.value}%`
- $('#save-table').onclick=async e=>{e.preventDefault();tablePrefs.cue=usable('cue',$('#cue-finish').value,loadUnlocked());tablePrefs.rails=usable('rails',$('#rails').value,loadUnlocked());tablePrefs.lighting=$('#lighting').value;tablePrefs.aimSensitivity=Number($('#aim-sensitivity').value)/100;tablePrefs.shotCam=$('#shot-cam').checked;tablePrefs.snap=$('#snap-aim').checked;tablePrefs.eyeHeight=Number($('#eye-height').value);const resized=Number($('#table-size').value)!==tablePrefs.size;state.game&&(state.game.aimSensitivity=tablePrefs.aimSensitivity);sfx.setHaptics($('#haptics').checked);localStorage.setItem('pool-masters:haptics',sfx.haptics?'1':'0');await applyTablePrefs(Number($('#table-size').value),FELTS[$('#felt').value],{fresh:resized});$('#table-dialog').close()}
+ $('#save-table').onclick=async e=>{e.preventDefault();tablePrefs.cue=usable('cue',$('#cue-finish').value,loadUnlocked());tablePrefs.rails=usable('rails',$('#rails').value,loadUnlocked());tablePrefs.lighting=$('#lighting').value;tablePrefs.aimSensitivity=Number($('#aim-sensitivity').value)/100;tablePrefs.shotCam=$('#shot-cam').checked;tablePrefs.snap=$('#snap-aim').checked;tablePrefs.eyeHeight=Number($('#eye-height').value);const resized=Number($('#table-size').value)!==tablePrefs.size;state.game&&(state.game.aimSensitivity=tablePrefs.aimSensitivity);sfx.setHaptics($('#haptics').checked);localStorage.setItem('push-pool:haptics',sfx.haptics?'1':'0');await applyTablePrefs(Number($('#table-size').value),FELTS[$('#felt').value],{fresh:resized});$('#table-dialog').close()}
  const paintSfx=()=>{$('#mute-sfx').textContent=sfx.enabled?'♪':'✕';$('#mute-sfx').classList.toggle('on',sfx.enabled)}
- $('#mute-sfx').onclick=()=>{sfx.setEnabled(!sfx.enabled);localStorage.setItem('pool-masters:muted',sfx.enabled?'0':'1');paintSfx()}
+ $('#mute-sfx').onclick=()=>{sfx.setEnabled(!sfx.enabled);localStorage.setItem('push-pool:muted',sfx.enabled?'0':'1');paintSfx()}
  paintSfx()
  const paintMusic=()=>{$('#music-toggle').textContent=music.enabled?'♫':'♩';$('#music-toggle').classList.toggle('on',music.enabled);$('#music-toggle').title=`Background music: ${music.title}`;$('#music-volume').hidden=!music.enabled;$('#music-volume').value=Math.round(music.volume*100)}
  state.paintMusic=paintMusic
  music.onTrack(track=>{const credit=$('#music-credit');credit.hidden=false;credit.href=track.url;credit.textContent=`♫ ${track.title} — ${track.creator}`;credit.title=`${track.license} · Open the track source`})
- $('#music-toggle').onclick=()=>{music.setEnabled(!music.enabled);localStorage.setItem('pool-masters:music',music.enabled?'1':'0');paintMusic()}
- $('#music-volume').oninput=e=>{music.setVolume(Number(e.target.value)/100);localStorage.setItem('pool-masters:music-volume',music.volume)}
+ $('#music-toggle').onclick=()=>{music.setEnabled(!music.enabled);localStorage.setItem('push-pool:music',music.enabled?'1':'0');paintMusic()}
+ $('#music-volume').oninput=e=>{music.setVolume(Number(e.target.value)/100);localStorage.setItem('push-pool:music-volume',music.volume)}
  $('#music-shuffle').onclick=()=>{const title=music.shuffle();toast(`Now playing: ${title}`);paintMusic()}
  paintMusic()
  $('#view-3d').onclick=()=>viewManager.cycle()
@@ -170,7 +170,7 @@ async function persistMatch(snapshot,force=false){
  if(state.mode!=='online'||!state.room?.isHost||!snapshot||snapshot.phase!=='aim')return
  state.pendingSave=snapshot
  const write=async()=>{state.saveTimer=null;const saved=state.pendingSave;state.pendingSave=null;state.lastSave=Date.now()
-  try{await state.room.update({metadata:{...state.room.metadata,game:'pool',saved_state:saved,resume_until:resumeExpiry()}})}catch(error){console.warn('match save failed',error)}
+  try{await state.room.update({metadata:{...state.room.metadata,game:'push',saved_state:saved,resume_until:resumeExpiry()}})}catch(error){console.warn('match save failed',error)}
  }
  if(force){clearTimeout(state.saveTimer);return write()}
  if(state.saveTimer||Date.now()-state.lastSave<1000){if(!state.saveTimer)state.saveTimer=setTimeout(write,1000-(Date.now()-state.lastSave));return}
@@ -179,10 +179,10 @@ async function persistMatch(snapshot,force=false){
 const chosenMode=()=>modeOf($('#game-mode')?.value)
 // obstacle tables: practice and two-players-one-device only
 const chosenObstacles=()=>{const v=$('#obstacles')?.value;return v&&isObstaclePreset(v)?v:null}
-async function createRoom(){try{const mode=chosenMode();const house=houseRules(),room=await foyer.createRoom({name:`${foyer.player.name}'s table`,metadata:{game:'pool',mode,house,ranked:mode==='8ball'&&houseIsDefault(house),resume_until:resumeExpiry(),match_score:emptyScore(),match_target:house.race,...spectatorMeta(foyer.player.id)},maxPlayers:10,status:'waiting'});await enterRoom(room,'player');$('#room-name').value=room.name;$('#room-dialog').showModal()}catch(e){toast(e.message)}}
+async function createRoom(){try{const mode=chosenMode();const house=houseRules(),room=await foyer.createRoom({name:`${foyer.player.name}'s table`,metadata:{game:'push',mode,house,ranked:mode==='8ball'&&houseIsDefault(house),resume_until:resumeExpiry(),match_score:emptyScore(),match_target:house.race,...spectatorMeta(foyer.player.id)},maxPlayers:10,status:'waiting'});await enterRoom(room,'player');$('#room-name').value=room.name;$('#room-dialog').showModal()}catch(e){toast(e.message)}}
 async function quickPlay(){
  const mode=chosenMode()
- const rooms=(await foyer.listRooms()).filter(r=>r.metadata?.game==='pool'&&modeOf(r.metadata?.mode)===mode&&houseIsDefault(r.metadata?.house)&&!r.metadata?.seats?.b)
+ const rooms=(await foyer.listRooms()).filter(r=>r.metadata?.game==='push'&&modeOf(r.metadata?.mode)===mode&&houseIsDefault(r.metadata?.house)&&!r.metadata?.seats?.b)
  if(rooms[0])return joinRoom(rooms[0].code);await createRoom()
 }
 async function joinRoom(code,intent='player'){code=String(code||'').trim().toUpperCase();if(!code)return toast('Enter a room code');try{const room=await foyer.join(code);if(intent==='player'&&room.metadata?.seats?.b){intent='spectator';toast('The table is full — requesting spectator access')}await enterRoom(room,intent)}catch(e){toast(e.message||'Could not join that room')}}
@@ -228,18 +228,18 @@ async function finishRanked(result){
  if(state.mode!=='online'||!state.room||state.role==='spectator'||state.role==='pending'||!state.opponent)return
  const winner=winnerForResult(result,state.room.isHost,foyer.player.id,state.opponent.id)
  if(!winner)return
- const gameId=`${state.room.id}:${result.round}`;const {error}=await sb.rpc('pm_report_result',{p_game_id:gameId,p_room_id:state.room.id,p_winner:winner,p_loser:winner===foyer.player.id?state.opponent.id:foyer.player.id})
+ const gameId=`${state.room.id}:${result.round}`;const {error}=await sb.rpc('pp_report_result',{p_game_id:gameId,p_room_id:state.room.id,p_winner:winner,p_loser:winner===foyer.player.id?state.opponent.id:foyer.player.id})
  if(error)console.warn(error);setTimeout(async()=>{await ensureLeagueProfile();await refresh()},900)
 }
-function aiRecord(){try{return JSON.parse(localStorage.getItem('pool-masters:ai-record'))||{wins:0,losses:0}}catch{return{wins:0,losses:0}}}
+function aiRecord(){try{return JSON.parse(localStorage.getItem('push-pool:ai-record'))||{wins:0,losses:0}}catch{return{wins:0,losses:0}}}
 function renderAiRecord(){const r=aiRecord(),games=r.wins+r.losses;$('#practice-record').hidden=false;$('#practice-record').textContent=`Against AI · ${r.wins}W–${r.losses}L${games?` · ${Math.round(r.wins/games*100)}% wins`:''}`}
-function recordAiResult(won){const r=aiRecord();r[won?'wins':'losses']=(r[won?'wins':'losses']||0)+1;localStorage.setItem('pool-masters:ai-record',JSON.stringify(r));renderAiRecord()}
+function recordAiResult(won){const r=aiRecord();r[won?'wins':'losses']=(r[won?'wins':'losses']||0)+1;localStorage.setItem('push-pool:ai-record',JSON.stringify(r));renderAiRecord()}
 async function startPractice(level='league',mode=chosenMode(),career=null){state.aiLevel=level;state.game?.destroy();state.mode='practice';state.room=null;state.opponent={name:career?career.name:`${AI_LEVELS[level].label} AI`};showGame();state.career=career;const house=career?normalizeHouse(null):houseRules();state.raceTo=career?career.race:house.race;state.matchScore={a:0,b:0};$('#game').classList.add('focus');history.replaceState({},'',location.pathname);$('#room-label').textContent=career?`Career · ${career.venue} · ${MODES[mode].label}`:`Unranked practice · ${MODES[mode].label}${houseTag(house)}`;$('#versus').innerHTML=`<span><b>${esc(foyer.player.name)}</b><small>You</small></span><i>vs</i><span><b>${esc(state.opponent.name)}</b><small>${career?`Race to ${career.race}`:'Practice'}</small></span>`;renderMatchScore();renderAiRecord();state.game=new PoolGame({mode,house,obstacles:career?null:chosenObstacles(),renderer:await ensureRenderer(),surface:$('.canvas-wrap'),status:$('#game-status'),groupStatus:$('#groups'),callout:$('#callout'),power:$('#power'),powerOut:$('.shot-controls output'),shoot:$('#shoot'),jumpBtn:$('#jump'),spinPad:$('#spin'),moveCue:$('#move-cue'),changePocket:$('#change-pocket'),sfx,onReplay:paintReplayBar,onShot:trackShot,aimSensitivity:tablePrefs.aimSensitivity,prefs:tablePrefs,host:true,practice:true,aiLevel:level,send:()=>{},onFinish:result=>{music.duck();sfx.result(result.winner==='a');recordAiResult(result.winner==='a');recordRackPerformance(result);trackRack(result);showRackResult(result);$('#next-rack').hidden=false}});renderMatchScore();$('.call-actions').hidden=true;$('#room-sidebar').hidden=true}
 // ---- trophies ----
-function loadStats(){try{return {...emptyStats(),...JSON.parse(localStorage.getItem('pool-masters:stats'))}}catch{return emptyStats()}}
-function loadUnlocked(){try{return JSON.parse(localStorage.getItem('pool-masters:trophies'))||{}}catch{return {}}}
+function loadStats(){try{return {...emptyStats(),...JSON.parse(localStorage.getItem('push-pool:stats'))}}catch{return emptyStats()}}
+function loadUnlocked(){try{return JSON.parse(localStorage.getItem('push-pool:trophies'))||{}}catch{return {}}}
 function track(e){
- localStorage.setItem('pool-masters:stats',JSON.stringify(applyEvent(loadStats(),e)))
+ localStorage.setItem('push-pool:stats',JSON.stringify(applyEvent(loadStats(),e)))
  checkTrophies()
 }
 // A finished shot, as either side sees it. Only games you are playing count.
@@ -257,7 +257,7 @@ function checkTrophies(){
  const unlocked=loadUnlocked()
  const fresh=newlyEarned({stats:loadStats(),drills:drillProgress(),career:careerProgress(),challenges:challengeResults(),rogue:rogueRecord(),profile:state.profile},unlocked)
  if(!fresh.length)return
- localStorage.setItem('pool-masters:trophies',JSON.stringify(unlock(unlocked,fresh)))
+ localStorage.setItem('push-pool:trophies',JSON.stringify(unlock(unlocked,fresh)))
  // a toast holds one message, so stagger a couple and summarise a crowd
  if(fresh.length<=2)fresh.forEach((t,i)=>setTimeout(()=>toast(`${t.icon} ${t.name} · ${rewardsOf(t.id).length?`unlocked ${rewardsOf(t.id).map(r=>r.name).join(', ')}`:t.desc}`),1800+i*2600))
  else setTimeout(()=>toast(`🏆 ${fresh.length} trophies earned`),1800)
@@ -275,7 +275,7 @@ function openTrophies(){
 }
 
 // ---- drills ----
-function drillProgress(){try{return JSON.parse(localStorage.getItem('pool-masters:drills'))||emptyProgress()}catch{return emptyProgress()}}
+function drillProgress(){try{return JSON.parse(localStorage.getItem('push-pool:drills'))||emptyProgress()}catch{return emptyProgress()}}
 function openDrills(){
  const p=drillProgress()
  $('#drills-summary').textContent=`One shot at a time, on a fixed table. ${doneCount(p)} of ${DRILLS.length} done${TRICK_DRILLS.length?`, and ${tricksDone(p)} of ${TRICK_DRILLS.length} trick shots.`:'.'}`
@@ -328,7 +328,7 @@ async function startDrill(id){
 function onDrillResult(e){
  if(!e){$('#drill-next').hidden=true;$('#drill-share').hidden=true;return}
  if(e.drill.puzzle){if(e.ok){toast('Puzzle solved!');sfx.result(true)}return}
- localStorage.setItem('pool-masters:drills',JSON.stringify(recordDrill(drillProgress(),e.drill.id,{ok:e.ok,attempts:e.attempts,hinted:e.hinted})))
+ localStorage.setItem('push-pool:drills',JSON.stringify(recordDrill(drillProgress(),e.drill.id,{ok:e.ok,attempts:e.attempts,hinted:e.hinted})))
  if(e.ok){toast(e.drill.trick?'Table cleared!':'Drill complete!');sfx.result(true);$('#drill-next').hidden=e.drill.tutorial!=null?false:!(e.drill.trick?nextTrick(e.drill.id):nextDrill(e.drill.id));$('#drill-share').hidden=!isDaily(e.drill.id);paintDaily();setTimeout(checkTrophies,1800)}
 }
 
@@ -364,7 +364,7 @@ async function openReplay(link){
  state.game.startReplay(rec)
  return true
 }
-function showGame(){state.career=null;state.raceTo=null;$('#game').classList.remove('solo');$('#replay-bar').classList.add('pop');$('#replay-bar').classList.remove('open');$('#drill-bar').hidden=true;$('.shot-controls').hidden=false;$('#replay-home').hidden=true;if(localStorage.getItem('pool-masters:music')!=='0')music.setEnabled(true);state.paintMusic?.();$('#lobby').classList.remove('active');$('#game').classList.add('active');$('#game').classList.remove('focus');$('#focus-table').textContent='Focus table';$('#messages').innerHTML='';$('#room-sidebar').hidden=false;$('#practice-record').hidden=true;$('#next-rack').hidden=true}
+function showGame(){state.career=null;state.raceTo=null;$('#game').classList.remove('solo');$('#replay-bar').classList.add('pop');$('#replay-bar').classList.remove('open');$('#drill-bar').hidden=true;$('.shot-controls').hidden=false;$('#replay-home').hidden=true;if(localStorage.getItem('push-pool:music')!=='0')music.setEnabled(true);state.paintMusic?.();$('#lobby').classList.remove('active');$('#game').classList.add('active');$('#game').classList.remove('focus');$('#focus-table').textContent='Focus table';$('#messages').innerHTML='';$('#room-sidebar').hidden=false;$('#practice-record').hidden=true;$('#next-rack').hidden=true}
 async function startCall(){if(!state.room)return;try{if(!state.media){state.media=state.room.media();state.media.onStream((_,s)=>{$('#remote-video').srcObject=s;$('#video-panel').classList.add('live')});state.media.onLeave(()=>{$('#remote-video').srcObject=null});const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:true});$('#local-video').srcObject=stream;await state.media.start(stream);$('#call').textContent='End call';paintCall();return}state.media.stop();state.media=null;paintCall();$('#local-video').srcObject=null;$('#remote-video').srcObject=null;$('#call').textContent='Start call';paintCall()}catch{toast('Camera or microphone unavailable')}}
 async function leaveRoom(push=true){music.setEnabled(false);state.paintMusic?.();if(state.game&&state.room?.isHost)await persistMatch(snapshotOf(state.game),true);clearTimeout(state.saveTimer);state.saveTimer=null;state.game?.destroy();state.game=null;state.media?.stop();state.media=null;paintCall();state.net?.close?.();state.net=null;state.peers.clear();state.unsubs.splice(0).forEach(fn=>fn?.());const oldRoom=state.room;state.room=null;state.mode='lobby';if(state.previewedTable){state.previewedTable=false;await viewManager.applyTablePrefs(tablePrefs.size,tablePrefs.felt,{fresh:false,remote:true})};$('#game').classList.remove('active');$('#lobby').classList.add('active');if(push)history.pushState({},'',location.pathname);if(oldRoom)await oldRoom.leave().catch(()=>{});await refresh()}
 // Registered after boot so it never delays first paint, and only in a build:
@@ -465,7 +465,7 @@ function showHotSeatResult(game,result){
 }
 
 // ---- career ----
-function careerProgress(){try{return JSON.parse(localStorage.getItem('pool-masters:career'))||emptyCareer()}catch{return emptyCareer()}}
+function careerProgress(){try{return JSON.parse(localStorage.getItem('push-pool:career'))||emptyCareer()}catch{return emptyCareer()}}
 function openCareer(){
  const p=careerProgress(),next=nextOpponent(p)
  $('#career-summary').textContent=next?`${beatenCount(p)} of ${LADDER.length} beaten. Next: ${next.name} at ${next.venue}.`:'You have beaten everyone. Champion of the circuit.'
@@ -485,13 +485,13 @@ function startCareer(id){
 function careerMatchDone(won){
  const o=state.career;if(!o)return
  const before=careerProgress(),after=won?recordWin(before,o.id):before
- if(won)localStorage.setItem('pool-masters:career',JSON.stringify(after))
+ if(won)localStorage.setItem('push-pool:career',JSON.stringify(after))
  $('#result-summary').textContent=summaryOf(o,won,after)
  if(won)setTimeout(checkTrophies,1800)
 }
 
 // ---- challenge games ----
-function challengeResults(){try{return JSON.parse(localStorage.getItem('pool-masters:challenges'))||emptyResults()}catch{return emptyResults()}}
+function challengeResults(){try{return JSON.parse(localStorage.getItem('push-pool:challenges'))||emptyResults()}catch{return emptyResults()}}
 function openChallenges(){
  const r=challengeResults()
  $('#challenge-list').innerHTML=CHALLENGES.map(c=>{const best=r[c.id]?.best;return `<button type="button" class="drill" data-challenge="${c.id}"><span class="dots">▶</span><span class="what"><b>${esc(c.name)}</b><small>${esc(c.blurb)}</small></span><span class="done">${best==null?'':'Best '+formatChallenge(c.id,best)+(c.unit&&c.id!=='clear'?' '+c.unit:'')}</span></button>`}).join('')
@@ -515,7 +515,7 @@ async function startChallenge(id){
 function finishChallenge(result){
  const c=result.challenge,def=challengeById(c.id)
  const {results,newBest,best}=recordChallenge(challengeResults(),c.id,c.final)
- localStorage.setItem('pool-masters:challenges',JSON.stringify(results))
+ localStorage.setItem('push-pool:challenges',JSON.stringify(results))
  music.duck();sfx.result(newBest)
  $('#result-title').textContent=newBest?'New best!':def.name
  const score=formatChallenge(c.id,c.final)+(def.unit&&c.id!=='clear'?' '+def.unit:'')
@@ -529,7 +529,7 @@ function finishChallenge(result){
 function eyeLabel(h){return h<=30?'crouched':h<=70?'at the cue':h<=110?'leaning in':'standing'}
 
 // ---- house rules ----
-function houseRules(){try{return normalizeHouse(JSON.parse(localStorage.getItem('pool-masters:house')))}catch{return normalizeHouse(null)}}
+function houseRules(){try{return normalizeHouse(JSON.parse(localStorage.getItem('push-pool:house')))}catch{return normalizeHouse(null)}}
 const houseTag=h=>{const d=describeHouse(h);return d?` · ${d}`:''}
 function openHouse(){
  const h=houseRules(),fill=(sel,items,label,value)=>{$(sel).innerHTML=items.map(v=>`<option value="${v}">${esc(label(v))}</option>`).join('');$(sel).value=String(value)}
@@ -543,7 +543,7 @@ function openHouse(){
 }
 function saveHouse(){
  const h=normalizeHouse({race:Number($('#house-race').value),ballInHand:$('#house-bih').value,breaker:$('#house-breaker').value,straightTo:Number($('#house-straight').value),jumps:$('#house-jumps').checked})
- localStorage.setItem('pool-masters:house',JSON.stringify(h))
+ localStorage.setItem('push-pool:house',JSON.stringify(h))
  toast(houseIsDefault(h)?'Standard rules':`House rules: ${describeHouse(h)}`)
 }
 
@@ -573,7 +573,7 @@ function paintCall(){
 function canStartRack(){return state.mode!=='online'||state.role==='host'||state.role==='player'}
 
 // ---- Rogue Pool ----
-function rogueRecord(){try{return JSON.parse(localStorage.getItem('pool-masters:rogue'))||emptyRogue()}catch{return emptyRogue()}}
+function rogueRecord(){try{return JSON.parse(localStorage.getItem('push-pool:rogue'))||emptyRogue()}catch{return emptyRogue()}}
 async function startRogue(){
  state.game?.destroy();state.game=null
  state.mode='rogue';state.room=null;state.opponent=null
@@ -595,7 +595,7 @@ function onRogueEvent(e){
   $('#rogue-dialog').showModal()
  }else if(e.type==='over'){
   const {rec,newBest}=recordRogue(rogueRecord(),e.run)
-  localStorage.setItem('pool-masters:rogue',JSON.stringify(rec))
+  localStorage.setItem('push-pool:rogue',JSON.stringify(rec))
   music.duck();sfx.result(newBest)
   $('#result-title').textContent=newBest?'New best run!':'Run over'
   $('#result-summary').textContent=`You cleared ${e.run.cleared} ${e.run.cleared===1?'table':'tables'} and potted ${e.run.score} balls. Best: ${rec.best}.`
