@@ -266,3 +266,16 @@ test('freeSpot gives up cleanly when the table is full',()=>{
  assert.equal(freeSpot([{on:true,x:100,y:100}],[],{minx:100,maxx:100,miny:100,maxy:100},seeded(1)),null)
  assert.ok(freeSpot([],[],BOUNDS,seeded(1)))
 })
+
+test('an unclaimed level-up waits for its owner: offers follow the turn',()=>{
+ // a owes two picks and the turn passes to b, who owes none: nothing on offer, a's picks are kept
+ const owed=withPush({a:{powers:{},items:[],picks:2},offers:[{id:'guide',level:1}]})
+ const toB=afterShot(owed,{shooter:'a',nextTurn:'b',turnChanged:true,balls:[],bounds:BOUNDS,rand:()=>.99})
+ assert.equal(toB.push.offers,null);assert.equal(toB.push.a.picks,2)
+ // the turn comes back to a: the offers are put up again
+ const back=afterShot(toB.push,{shooter:'b',nextTurn:'a',turnChanged:true,balls:[],bounds:BOUNDS,rand:seeded(5)})
+ assert.equal(back.push.offers.length,3);assert.equal(back.push.a.picks,2)
+ // b pots and keeps the turn while a still owes picks: b is offered, a's stay owed
+ const bPots=afterShot(withPush({a:{powers:{},items:[],picks:2}}),{shooter:'b',nextTurn:'b',levelUps:1,balls:[],bounds:BOUNDS,rand:seeded(6)})
+ assert.equal(bPots.push.offers.length,3);assert.equal(bPots.push.b.picks,1);assert.equal(bPots.push.a.picks,2)
+})

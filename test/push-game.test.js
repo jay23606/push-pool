@@ -110,3 +110,11 @@ test('a re-rack puts the real balls back and leaves the dummies alone',()=>{
  assert.equal(g.balls.filter(b=>b.k!=='cue'&&b.k!=='dummy'&&b.on).length,15)
  const d=g.balls.find(b=>b.n===100);assert.equal(d.k,'dummy');assert.equal(d.x,200)
 })
+
+test('the AI takes every level-up it is owed, and the human keeps theirs for next turn',()=>{
+ const {g}=game({practice:true,hotSeat:false,turn:'b',me:'a',push:{...freshPush(),a:{powers:{},items:[],picks:3}}});clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250;put(g,1,350,120);put(g,2,300,120);put(g,14,600,330);put(g,15,620,300)
+ strike(cue,0,-1300);g.startShot();roll(g)
+ assert.equal(g.push.b.picks,0,'the AI has taken all of its own')
+ if(g.turn==='a'){assert.equal(g.push.a.picks,3);assert.equal(g.push.offers.length,3,'and the human is offered theirs')}
+})

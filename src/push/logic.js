@@ -41,11 +41,14 @@ export function collectPickups(push,score,turn,cue){
 // Returns the new push state and a list of short messages. Level-up picks are owed at once and offered to the shooter,
 // who has kept the turn (a level-up only comes with a legal pot). When the turn passes, the table ages and new
 // things may be dealt for the coming turn.
-export function afterShot(push,{shooter,levelUps=0,turnChanged=false,balls,bounds,rand=Math.random}){
+export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=false,balls,bounds,rand=Math.random}){
  const messages=[]
  let next=levelUps?inPush(push,shooter,p=>({...p,picks:p.picks+levelUps})):push
- if(next[shooter].picks>0&&!next.offers){
-  const o=makeOffers(next[shooter],rand);if(o.length){next={...next,offers:o};messages.push('Level up · choose a power')}
+ // Offers belong to whoever is to play: when the turn passes they are dropped, and put up again for the next player if
+ // they still owe a pick, so a level-up you did not get to take waits for your next turn.
+ if(turnChanged)next={...next,offers:null}
+ if(next[nextTurn].picks>0&&!next.offers){
+  const o=makeOffers(next[nextTurn],rand);if(o.length){next={...next,offers:o};messages.push('Level up · choose a power')}
  }
  if(turnChanged){
   const turns=next.turns+1,aged=tickSpawns(next.spawns),pickups=next.pickups.map(k=>({...k,ttl:k.ttl-1})).filter(k=>k.ttl>0)

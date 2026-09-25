@@ -334,11 +334,11 @@ export class PoolGame{
  // P.U.S.H. Pool. The host judges everything; a guest only asks (a pick, a jump) and is told the result in the next state.
  pushAfterShot(shooter,v){
   if(!this.push)return
-  const r=afterShot(this.push,{shooter,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY}})
+  const r=afterShot(this.push,{shooter,nextTurn:v.nextTurn,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY}})
   this.push=r.push
   if(r.messages.length)this.flash(r.messages[0])
   // the practice AI takes its level-up at once, at random
-  if(this.push.offers&&this.practice&&!this.hotSeat&&this.turn==='b')this.applyPick('b',this.push.offers[Math.floor(Math.random()*this.push.offers.length)].id)
+  while(this.push.offers&&this.practice&&!this.hotSeat&&this.turn==='b')this.applyPick('b',this.push.offers[Math.floor(Math.random()*this.push.offers.length)].id)
  }
  applyPick(player,id){
   if(!this.push||this.turn!==player)return
@@ -631,5 +631,5 @@ export class PoolGame{
   catch(e){if(!this.loggedDrawError){this.loggedDrawError=true;console.error('a frame failed to draw',e)}}
  }
  flash(s){this.callout.textContent=s;this.callout.classList.add('show');clearTimeout(this.ft);this.ft=setTimeout(()=>this.callout.classList.remove('show'),1000)}
- destroy(){setObstacles([]);clearTimeout(this.retryTimer);cancelAnimationFrame(this.raf);clearInterval(this.background);clearTimeout(this.ft);this.unbindInput?.()}
+ destroy(){this.pushPanel?.remove();this.pushPanel=null;setObstacles([]);clearTimeout(this.retryTimer);cancelAnimationFrame(this.raf);clearInterval(this.background);clearTimeout(this.ft);this.unbindInput?.()}
 }
