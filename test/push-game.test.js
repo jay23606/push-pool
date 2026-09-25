@@ -6,6 +6,7 @@ import {freshPush} from '../src/push/state.js'
 import {makeDummy} from '../src/push/dummy.js'
 import {snapshotOf,applySnapshot} from '../src/game-state.js'
 import {isGameMessage} from '../src/protocol.js'
+import {R} from '../src/table.js'
 
 // a hot-seat push game with no DOM: same construction as the chaos tests
 function game(extra={}){
@@ -257,4 +258,37 @@ test('a guest asks the host to toss, only on their turn',()=>{
  g.receive({t:'toss',item:'smokebomb',x:300,y:190});assert.equal(g.push.obstacles.length,1)
  const {g:h}=game({turn:'a',push:{...freshPush(),b:{powers:{},items:['smokebomb'],picks:0}}})
  h.receive({t:'toss',item:'smokebomb',x:300,y:190});assert.equal(h.push.obstacles.length,0)
+})
+
+// ---- hazards in a game ----
+test('a slick changes how far a ball rolls: ice keeps it going, sand stops it sooner',()=>{
+ const dist=variant=>{
+  const {g}=game({push:{...freshPush(),obstacles:variant?[{t:'slick',variant,x:330,y:190,r:200,ttl:5}]:[]}});g.syncObstacles();clear(g)
+  const cue=g.balls[0];cue.on=true;cue.x=150;cue.y=190;put(g,14,600,330);put(g,15,620,300)
+  const target=put(g,1,300,190)
+  strike(cue,300,0);g.startShot();roll(g,8);return target.x
+ }
+ const plain=dist(null);assert.ok(dist('sand')<plain,'sand is shorter');assert.ok(dist('ice')>plain,'ice is longer')
+})
+
+test('a black hole swallows a ball, and the ball is on the table again when the hole closes',()=>{
+ const {g}=game({push:{...freshPush(),obstacles:[{t:'blackhole',x:300,y:190,r:110,held:[],ttl:5}]}});g.syncObstacles();clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=120;cue.y=330;put(g,14,190,330);put(g,15,620,300);const b=put(g,4,300,192)
+ strike(cue,200,0);g.startShot();roll(g,3)
+ assert.equal(b.on,false,'swallowed');assert.deepEqual(g.push.obstacles.find(o=>o.t==='blackhole').held,[b.n])
+ g.push={...g.push,obstacles:g.push.obstacles.map(o=>({...o,ttl:1}))}
+ g.pushAfterShot('a',{levelUps:0,nextTurn:'b',foul:false})
+ assert.equal(g.push.obstacles.filter(o=>o.t==='blackhole').length,0,'it closed');assert.equal(b.on,true,'and gave the ball back')
+ assert.ok(g.balls.every(q=>q===b||!q.on||Math.hypot(q.x-b.x,q.y-b.y)>=R*2),'not on top of another ball')
+})
+
+test('a hurricane rains dummy balls onto the table',()=>{
+ let seen=0
+ for(let i=0;i<1500&&!seen;i++){
+  const {g}=game({push:{...freshPush(),turns:1}});clear(g);g.balls[0].on=true;g.balls[0].x=154;g.balls[0].y=190
+  g.pushAfterShot('a',{levelUps:0,nextTurn:'b',foul:true})
+  seen=g.balls.filter(b=>b.k==='dummy').length
+  assert.ok(g.balls.every(b=>b.k!=='dummy'||(b.n>=100&&b.on)))
+ }
+ assert.ok(seen>=5,'a hurricane came within fifteen hundred tries')
 })

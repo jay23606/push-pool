@@ -2,6 +2,7 @@ import {newPlayer} from './economy.js'
 import {POWERS,MAX_LEVEL} from './powers.js'
 import {ITEMS} from './items.js'
 import {SPAWN_TYPES} from './spawns.js'
+import {SLICKS,HOLE_MAX_HELD} from './hazards.js'
 
 // The P.U.S.H. part of a game's state: each player's powers, items and owed picks, the level-up offers on screen,
 // and the spawns on the table. Points are not here -- they are the game's `score`, so there is one number to keep.
@@ -21,7 +22,12 @@ const validSpawn=s=>s&&typeof s==='object'&&SPAWN_TYPES[s.type]&&Number.isIntege
 const validPickup=k=>k&&typeof k==='object'&&fin(k.x)&&fin(k.y)&&Number.isInteger(k.ttl)&&k.ttl>=0&&k.ttl<=9
  &&(k.kind==='gem'?Number.isInteger(k.v)&&k.v>=1&&k.v<=99:k.kind==='item'&&Boolean(ITEMS[k.id]))
 
-const validObstacle=o=>o&&typeof o==='object'&&Number.isInteger(o.ttl)&&o.ttl>=0&&o.ttl<=12&&((o.t==='bumper'||o.t==='mine'||o.t==='smoke')?['x','y','r'].every(k=>fin(o[k])):o.t==='wall'&&['x1','y1','x2','y2'].every(k=>fin(o[k])))
+const validObstacle=o=>o&&typeof o==='object'&&Number.isInteger(o.ttl)&&o.ttl>=0&&o.ttl<=12&&(
+ (o.t==='bumper'||o.t==='mine'||o.t==='smoke')?['x','y','r'].every(k=>fin(o[k])):
+ o.t==='wall'?['x1','y1','x2','y2'].every(k=>fin(o[k])):
+ o.t==='portal'?['x','y','r'].every(k=>fin(o[k]))&&Array.isArray(o.to)&&o.to.length===2&&o.to.every(fin):
+ o.t==='slick'?['x','y','r'].every(k=>fin(o[k]))&&SLICKS.includes(o.variant):
+ o.t==='blackhole'&&['x','y','r'].every(k=>fin(o[k]))&&Array.isArray(o.held)&&o.held.length<=HOLE_MAX_HELD&&o.held.every(n=>Number.isInteger(n)&&n>=0&&n<=15))
 
 export function validPush(p){
  if(p===undefined||p===null)return true

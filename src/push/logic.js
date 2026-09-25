@@ -1,30 +1,21 @@
 import {R} from '../table.js'
+import {freeSpot} from './logic-spots.js'
 import {offers as makeOffers,pick,giveItem,whyNotPower,usePower} from './economy.js'
 import {dealSpawns,tickSpawns} from './spawns.js'
 import {rollGem} from './items.js'
-import {ageObstacles} from './placing.js'
+import {ageHazards,makeHazard,hazardOf,isHazardSpawn,HAZARD_TYPES} from './hazards.js'
 import {isArmable,powerLevel} from './powers.js'
 
 // What happens around a shot, as pure functions over the game's `push` state and `score`. The game object calls
 // these and applies the result, so the rules can be tested without a table.
 
 // the spawns implemented so far; the rest of the catalogue is dealt only once its effect exists
-export const LIVE_SPAWNS=['gemdrop','itemdrop']
+export const LIVE_SPAWNS=['gemdrop','itemdrop',...HAZARD_TYPES]
 export const GEM_LIFE=2,ITEM_LIFE=5
+const HAZARD_MESSAGE={wormhole:'A wormhole has opened',slick:'A slick has appeared',blackhole:'A black hole has appeared',hurricane:'Hurricane!'}
 const REACH=R+8       // how close the cue ball must pass to a pickup to take it
 
 const inPush=(push,turn,fn)=>({...push,[turn]:fn(push[turn])})
-
-// A free spot on the cloth: clear of every ball and every other pickup. Null if it cannot find one.
-export function freeSpot(balls,taken,bounds,rand){
- const {minx,maxx,miny,maxy}=bounds
- for(let i=0;i<40;i++){
-  const x=Math.round(minx+rand()*(maxx-minx)),y=Math.round(miny+rand()*(maxy-miny))
-  if(balls.some(b=>b.on&&Math.hypot(b.x-x,b.y-y)<R*2.2)||taken.some(t=>Math.hypot(t.x-x,t.y-y)<R*2.2))continue
-  return [x,y]
- }
- return null
-}
 
 // The cue ball has moved: take any pickup it is over. Gems are points now, items go in hand.
 export function collectPickups(push,score,turn,cue){
@@ -45,6 +36,7 @@ export function collectPickups(push,score,turn,cue){
 // things may be dealt for the coming turn.
 export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=false,balls,bounds,rand=Math.random}){
  const messages=[]
+ let release=[],dummies=0
  let next=levelUps?inPush(push,shooter,p=>({...p,picks:p.picks+levelUps})):push
  // Offers belong to whoever is to play: when the turn passes they are dropped, and put up again for the next player if
  // they still owe a pick, so a level-up you did not get to take waits for your next turn.
@@ -54,9 +46,17 @@ export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=
  }
  if(turnChanged){
   const turns=next.turns+1,aged=tickSpawns(next.spawns),pickups=next.pickups.map(k=>({...k,ttl:k.ttl-1})).filter(k=>k.ttl>0)
-  next={...next,turns,spawns:aged.alive,pickups,obstacles:ageObstacles(next.obstacles)}
-  const dealt=dealSpawns(aged.alive,turns,rand,()=>[0,0],LIVE_SPAWNS)
+  const obs=ageHazards(next.obstacles);release=obs.released
+  next={...next,turns,spawns:aged.alive,pickups,obstacles:obs.alive}
+  // a hazard of a kind already on the table is not dealt again
+  const active=[...aged.alive,...obs.alive.map(hazardOf).filter(Boolean).map(type=>({type}))]
+  const dealt=dealSpawns(active,turns,rand,()=>[0,0],LIVE_SPAWNS)
   for(const s of dealt){
+   if(isHazardSpawn(s.type)){
+    const h=makeHazard(s,balls,bounds,rand,[...next.obstacles.filter(o=>o.x!==undefined),...next.pickups])
+    if(h.obstacles.length||h.dummies){next={...next,obstacles:[...next.obstacles,...h.obstacles]};dummies+=h.dummies;messages.push(HAZARD_MESSAGE[s.type])}
+    continue
+   }
    if(s.type==='gemdrop'){
     let n=0
     for(const v of s.gems){const at=freeSpot(balls,next.pickups,bounds,rand);if(!at)break;next={...next,pickups:[...next.pickups,{kind:'gem',v,x:at[0],y:at[1],ttl:GEM_LIFE}]};n++}
@@ -67,7 +67,7 @@ export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=
    }
   }
  }
- return {push:next,messages}
+ return {push:next,messages,release,dummies}
 }
 
 // The current player picks one of the offered powers. Clears the offers, and offers again if picks are still owed.
@@ -103,4 +103,4 @@ export function payArmed(push,score,turn,armed){
  return {score:pts,applied}
 }
 
-export {rollGem}
+export {rollGem,freeSpot}

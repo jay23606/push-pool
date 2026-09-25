@@ -9,7 +9,8 @@ import {renderPushPanel} from './push/panel.js'
 import {powerCost,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS} from './push/powers.js'
 import {placeItem,whyNotPlace,isPlaceable,MINE_BLAST_R,MINE_BLAST_POWER} from './push/placing.js'
 import {isTossable,landing,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS} from './push/toss.js'
-import {DUMMY_POINTS} from './push/dummy.js'
+import {DUMMY_POINTS,scatterDummies} from './push/dummy.js'
+import {stepHazards} from './push/hazards.js'
 import {ITEMS} from './push/items.js'
 import {newRun as newRogueRun,judge as judgeRogue,choose as chooseRogue,advance as advanceRogue,offer as offerRogue,POCKET_BOOST} from './rogue.js'
 import {other,remaining as countLeft,nearestPocket,validCueSpot,judgeShot,opposite,normalizeGroup,modeOf,lowestBall,nineRespot,MODES,isScoreMode,ONE_POCKET,targetFor,isRotation,MONEY,trianglePositions,kind,PUSH_POT} from './rules.js'
@@ -344,6 +345,9 @@ export class PoolGame{
   if(!this.push)return
   const r=afterShot(this.push,{shooter,nextTurn:v.nextTurn,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY}})
   this.push=r.push;this.placing=null;this.syncObstacles()
+  // what the hazards did: a black hole that closed gives its balls back, a hurricane rains dummies
+  for(const rel of r.release||[])this.releaseBall(rel)
+  if(r.dummies)this.balls.push(...scatterDummies(this.balls,r.dummies,{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY},Math.random))
   if(r.messages.length)this.flash(r.messages[0])
   // the practice AI takes its level-up at once, at random
   while(this.push.offers&&this.practice&&!this.hotSeat&&this.turn==='b')this.applyPick('b',this.push.offers[Math.floor(Math.random()*this.push.offers.length)].id)
@@ -452,6 +456,21 @@ export class PoolGame{
    }
   }
  }
+ // Zone hazards act on every ball each step; a black hole may swallow one, which comes back when the hole closes.
+ hazards(dt){
+  const sw=stepHazards(this.balls,this.push.obstacles,dt);if(!sw.length)return
+  let list=this.push.obstacles
+  for(const {hole,ball} of sw){ball.on=false;ball.vx=ball.vy=0;list=list.map(o=>o===hole||(o.t==='blackhole'&&o.x===hole.x&&o.y===hole.y)?{...o,held:[...o.held,ball.n]}:o)}
+  this.push={...this.push,obstacles:list};this.syncObstacles();this.flash('Swallowed by the black hole')
+ }
+ releaseBall({n,x,y}){
+  const b=this.balls.find(q=>q.n===n);if(!b||b.on)return
+  for(let i=0;i<40;i++){
+   const a=i*2.4,d=R*2.6+i*2.5,px=Math.min(MAXX,Math.max(MINX,x+Math.cos(a)*d)),py=Math.min(MAXY,Math.max(MINY,y+Math.sin(a)*d))
+   if(!this.balls.some(q=>q!==b&&q.on&&Math.hypot(q.x-px,q.y-py)<R*2.1)){b.x=px;b.y=py;break}
+  }
+  b.on=true;clearMotion(b)
+ }
  // A landmine goes off when any ball rolls over it: the balls around it are thrown outward and the mine is gone.
  mineCheck(){
   const list=this.push?.obstacles;if(!list?.some(o=>o.t==='mine'))return
@@ -477,7 +496,7 @@ export class PoolGame{
   this.flash(items.length?'Picked up '+ITEMS[items[0].id].name:'+'+gems)
  }
  sub(dt){
-  this.collect();this.shotEffects(dt);if(this.mode==='push')this.mineCheck()
+  this.collect();this.shotEffects(dt);if(this.mode==='push'){this.mineCheck();if(this.push?.obstacles?.some(o=>o.t==='slick'||o.t==='blackhole'))this.hazards(dt)}
   const well=this.fx&&this.fx.type==='well'?this.fx:null,pockets=this.pocketList(),scale=this.pocketScale()
   for(const b of this.balls){
    if(!b.on)continue

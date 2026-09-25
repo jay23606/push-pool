@@ -402,3 +402,65 @@ test('the wire carries a toss request and refuses a malformed one',()=>{
  assert.ok(isGameMessage({t:'toss',item:'bomb',x:300,y:190}))
  for(const bad of [{t:'toss',item:'bomb',x:'a',y:1},{t:'toss',x:1,y:1},{t:'toss',item:'x'.repeat(30),x:1,y:1}])assert.equal(isGameMessage(bad),false)
 })
+
+// ---- hazards ----
+import {makeHazard,stepHazards,ageHazards,hazardOf,SLICKS,HOLE_R,HOLE_MAX_HELD,MAX_DUMMIES_ON_TABLE,HURRICANE} from '../src/push/hazards.js'
+const cueBall=cueAt(100,100)
+const spawnOf=(type,o={})=>({type,ttl:3,...o})
+
+test('a wormhole is two linked portals, well apart and on the cloth',()=>{
+ for(let i=1;i<=40;i++){
+  const h=makeHazard(spawnOf('wormhole'),[cueBall],BOUNDS,seeded(i))
+  assert.equal(h.obstacles.length,2);const [a,b]=h.obstacles
+  assert.equal(a.t,'portal');assert.deepEqual(a.to,[b.x,b.y]);assert.deepEqual(b.to,[a.x,a.y]);assert.ok(Math.hypot(a.x-b.x,a.y-b.y)>120);assert.equal(a.ttl,3)
+  assert.ok(validPush({...withPush(),obstacles:h.obstacles}),'valid on the wire')
+ }
+})
+
+test('slicks come in four kinds with a sensible size; a black hole starts empty; a hurricane is a dummy count, not an object',()=>{
+ for(const v of SLICKS){const s=makeHazard(spawnOf('slick',{variant:v}),[],BOUNDS,seeded(4)).obstacles[0];assert.equal(s.variant,v);assert.ok(s.r>=34&&s.r<=58);assert.ok(validPush({...withPush(),obstacles:[s]}))}
+ const bh=makeHazard(spawnOf('blackhole'),[],BOUNDS,seeded(4)).obstacles[0];assert.deepEqual(bh.held,[]);assert.equal(bh.r,HOLE_R)
+ const hu=makeHazard(spawnOf('hurricane'),[],BOUNDS,seeded(4));assert.deepEqual(hu.obstacles,[]);assert.ok(hu.dummies>=HURRICANE[0]&&hu.dummies<=HURRICANE[1])
+ const crowded=Array.from({length:MAX_DUMMIES_ON_TABLE},(_,i)=>makeDummy(100+i,1,1))
+ assert.equal(makeHazard(spawnOf('hurricane'),crowded,BOUNDS,seeded(4)).dummies,0,'a crowded table gets no more')
+ assert.equal(makeHazard(spawnOf('volcano'),[],BOUNDS,seeded(1)).obstacles.length,0,'not built yet: nothing')
+})
+
+const rolling=(x,y,vx,vy)=>({n:5,k:'solid',on:true,x,y,vx,vy,wx:0,wy:0,wz:0,z:0})
+test('slick physics: ice keeps a ball going, electric speeds it up, sand slows it, plasma sticks it',()=>{
+ const speed=b=>Math.hypot(b.vx,b.vy),run=(variant,v=100)=>{const b=rolling(100,100,v,0);for(let i=0;i<60;i++)stepHazards([b],[{t:'slick',variant,x:100,y:100,r:50,ttl:2}],1/120);return b}
+ assert.ok(speed(run('ice'))>100);assert.ok(speed(run('electric'))>speed(run('ice')));assert.ok(speed(run('sand'))<100)
+ const stuck=run('plasma',40);assert.equal(speed(stuck),0,'a slow ball in plasma stops dead')
+ const off=rolling(300,300,100,0);stepHazards([off],[{t:'slick',variant:'electric',x:100,y:100,r:50,ttl:2}],1/120);assert.equal(off.vx,100,'off the patch, untouched')
+ const air={...rolling(100,100,100,0),z:5};stepHazards([air],[{t:'slick',variant:'sand',x:100,y:100,r:50,ttl:2}],1/120);assert.equal(air.vx,100,'a jumping ball skips over it')
+})
+
+test('a black hole pulls balls in, swallows a slow one at the centre, never the cue ball, and holds only a few',()=>{
+ const hole={t:'blackhole',x:200,y:200,r:HOLE_R,held:[],ttl:3}
+ const b=rolling(260,200,0,0);stepHazards([b],[hole],.05);assert.ok(b.vx<0,'pulled toward the centre')
+ const far=rolling(200+HOLE_R+5,200,0,0);stepHazards([far],[hole],.05);assert.equal(far.vx,0,'out of reach')
+ const slow=rolling(203,200,10,0),sw=stepHazards([slow],[hole],.01);assert.equal(sw.length,1);assert.equal(sw[0].ball,slow)
+ const fast=rolling(203,200,900,0);assert.equal(stepHazards([fast],[hole],.01).length,0,'a fast ball slings past')
+ const cue={...rolling(203,200,10,0),k:'cue',n:0};assert.equal(stepHazards([cue],[hole],.01).length,0)
+ const full={...hole,held:Array.from({length:HOLE_MAX_HELD},(_,i)=>i+1)};assert.equal(stepHazards([rolling(203,200,10,0)],[full],.01).length,0,'full')
+})
+
+test('hazards age with the turns; a black hole that closes gives its balls back where it was',()=>{
+ const list=[{t:'blackhole',x:120,y:90,r:HOLE_R,held:[3,7],ttl:1},{t:'slick',variant:'ice',x:1,y:1,r:40,ttl:2},{t:'wall',x1:0,y1:0,x2:1,y2:1,ttl:1}]
+ const r=ageHazards(list);assert.deepEqual(r.alive.map(o=>o.t),['slick']);assert.deepEqual(r.released,[{n:3,x:120,y:90},{n:7,x:120,y:90}])
+ assert.equal(hazardOf({t:'portal'}),'wormhole');assert.equal(hazardOf({t:'wall'}),null)
+})
+
+test('dealing can now bring hazards, at most one of a kind, and a hurricane reports its dummies',()=>{
+ const kinds=new Set();let dummies=0,released=0
+ for(let i=1;i<=400;i++){
+  const balls=[{n:0,k:'cue',on:true,x:154,y:190}]
+  const r=afterShot(withPush({turns:1}),{shooter:'a',nextTurn:'b',turnChanged:true,balls,bounds:BOUNDS,rand:seeded(i)})
+  for(const o of r.push.obstacles)kinds.add(hazardOf(o));dummies+=r.dummies;released+=r.release.length
+  assert.ok(isGameMessage(snapshotOf({...freshRackState('push'),balls:rack('push'),round:1,push:r.push})),'still valid on the wire')
+ }
+ for(const k of ['wormhole','slick','blackhole'])assert.ok(kinds.has(k),k+' turns up')
+ assert.ok(dummies>0,'hurricanes turn up');assert.equal(released,0)
+ const twice=afterShot(withPush({turns:1,obstacles:[{t:'slick',variant:'ice',x:9,y:9,r:40,ttl:5}]}),{shooter:'a',nextTurn:'b',turnChanged:true,balls:[],bounds:BOUNDS,rand:seeded(3)})
+ assert.ok(twice.push.obstacles.filter(o=>o.t==='slick').length<=1,'never two slicks')
+})

@@ -35,6 +35,10 @@ export function createRenderer2D(canvas,options={}){
    g.fillStyle='#07100c'
    const pk=game.pocketScale?game.pocketScale():1
    POCKETS.forEach(([x,y],i)=>{g.beginPath();g.arc(x,y,(PR-2)*pk,0,7);g.fill();if((game.markedPocket?game.markedPocket():game.calledPocket)===i){g.strokeStyle='#ffd75d';g.lineWidth=3;g.beginPath();g.arc(x,y,PR+3,0,7);g.stroke()}if(game.snapMark&&game.snapMark()===i){g.strokeStyle='#ffffffb0';g.lineWidth=2;g.beginPath();g.arc(x,y,PR+1,0,7);g.stroke()}})
+   for(const o of game.push?.obstacles||[]){
+    if(o.t==='slick'){const c={ice:'150,220,255',electric:'255,230,90',sand:'220,180,110',plasma:'200,90,255'}[o.variant]||'255,255,255',gr=g.createRadialGradient(o.x,o.y,2,o.x,o.y,o.r);gr.addColorStop(0,`rgba(${c},.55)`);gr.addColorStop(1,`rgba(${c},.12)`);g.fillStyle=gr;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill()}
+    if(o.t==='blackhole'){const gr=g.createRadialGradient(o.x,o.y,2,o.x,o.y,o.r);gr.addColorStop(0,'rgba(0,0,0,.95)');gr.addColorStop(.25,'rgba(40,10,70,.6)');gr.addColorStop(1,'rgba(90,40,160,0)');g.fillStyle=gr;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill()}
+   }
    for(const o of game.push?.obstacles||[])if(o.t==='smoke'){const gr=g.createRadialGradient(o.x,o.y,4,o.x,o.y,o.r);gr.addColorStop(0,'rgba(200,200,205,.8)');gr.addColorStop(1,'rgba(200,200,205,.15)');g.fillStyle=gr;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill()}
    for(const o of game.push?.obstacles||[])if(o.t==='mine'){g.fillStyle='#2a0b0b';g.strokeStyle='#ff5a3c';g.lineWidth=2;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke();g.fillStyle='#ff5a3c';g.beginPath();g.arc(o.x,o.y,2.5,0,7);g.fill()}
    if(game.placing?.pos&&game.phase==='aim'){
