@@ -61,7 +61,7 @@ test('a dummy ball is worth a point, does not keep the turn, and is ignored by t
  put(g,14,600,330);put(g,15,620,300)
  g.balls.push(makeDummy(100,350,120))
  strike(cue,0,-1300);g.startShot();roll(g)
- assert.equal(g.balls.find(b=>b.n===100).on,false,'the dummy dropped')
+ assert.equal(g.balls.some(b=>b.n===100),false,'the dummy dropped and is gone for good')
  assert.equal(g.score.a,1);assert.equal(g.turn,'b');assert.equal(g.push.a.picks,0);assert.equal(g.over,false)
 })
 
@@ -291,4 +291,40 @@ test('a hurricane rains dummy balls onto the table',()=>{
   assert.ok(g.balls.every(b=>b.k!=='dummy'||(b.n>=100&&b.on)))
  }
  assert.ok(seen>=5,'a hurricane came within fifteen hundred tries')
+})
+
+// ---- bonuses in a game ----
+test('a bonus hole pays its reward for any ball, the cue ball included, and hands the ball back',()=>{
+ const hole={t:'bonushole',x:250,y:28,r:17,reward:{gems:12},ttl:3}
+ const {g}=game({push:{...freshPush(),obstacles:[hole]}});g.syncObstacles();clear(g)
+ assert.equal(g.pocketList().length,7,'the hole is the seventh pocket')
+ const cue=g.balls[0];cue.on=true;cue.x=250;cue.y=250;const b=put(g,1,250,120);put(g,14,600,330);put(g,15,620,300)
+ strike(cue,0,-1300);g.startShot();roll(g)
+ // the ball went into the hole and is back on the table; the shot was not a pot, so no level-up, and the reward was paid
+ assert.equal(b.on,true,'the ball came back');assert.ok(g.score.a>=12,'paid');assert.equal(g.push.a.picks,0,'a bonus hole sink is not a pot')
+ assert.ok(g.push.obstacles.some(o=>o.t==='bonushole'),'the hole is still there afterwards (it only closes when its turns run out)')
+})
+
+test('a bonus hole with an item reward gives the item, and swallows a dummy for good',()=>{
+ const hole={t:'bonushole',x:250,y:28,r:17,reward:{item:'mortar'},ttl:1}
+ const {g}=game({push:{...freshPush(),obstacles:[hole]}});g.syncObstacles();clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=250;cue.y=250;put(g,14,600,330);put(g,15,620,300);g.balls.push(makeDummy(100,250,120))
+ strike(cue,0,-1300);g.startShot();roll(g)
+ assert.ok(g.push.a.items.includes('mortar'));assert.equal(g.balls.some(b=>b.n===100),false)
+})
+
+test('a P switch is set off by the cue ball alone and turns every dummy into a gem',()=>{
+ const sw={t:'pswitch',x:350,y:150,r:9,ttl:3}
+ const {g}=game({push:{...freshPush(),obstacles:[sw]}});g.syncObstacles();clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250;put(g,14,600,330);put(g,15,620,300);put(g,1,350,100)
+ g.balls.push(makeDummy(100,200,300),makeDummy(101,500,300))
+ strike(cue,0,-700);g.startShot();roll(g,3)
+ assert.equal(g.push.obstacles.some(o=>o.t==='pswitch'),false,'the switch is gone')
+ assert.equal(g.balls.filter(b=>b.k==='dummy').length,0,'no dummies left')
+ assert.ok(g.push.pickups.filter(k=>k.kind==='gem'&&k.v===5).length>=2,'now gems')
+ // a ball other than the cue ball does not trigger it
+ const {g:h}=game({push:{...freshPush(),obstacles:[sw]}});h.syncObstacles();clear(h)
+ const c2=h.balls[0];c2.on=true;c2.x=200;c2.y=250;put(h,14,600,330);put(h,15,620,300);const o=put(h,1,350,150);o.vx=0
+ h.balls.push(makeDummy(100,200,300))
+ h.mineCheck();h.switchCheck();assert.equal(h.push.obstacles.length,1,'a ball on top of the switch is not the cue ball')
 })

@@ -12,7 +12,7 @@ import {isArmable,powerLevel} from './powers.js'
 // the spawns implemented so far; the rest of the catalogue is dealt only once its effect exists
 export const LIVE_SPAWNS=['gemdrop','itemdrop',...HAZARD_TYPES]
 export const GEM_LIFE=2,ITEM_LIFE=5
-const HAZARD_MESSAGE={wormhole:'A wormhole has opened',slick:'A slick has appeared',blackhole:'A black hole has appeared',hurricane:'Hurricane!'}
+const HAZARD_MESSAGE={pswitch:'A P switch has appeared',bonushole:'A bonus hole has opened',wormhole:'A wormhole has opened',slick:'A slick has appeared',blackhole:'A black hole has appeared',hurricane:'Hurricane!'}
 const REACH=R+8       // how close the cue ball must pass to a pickup to take it
 
 const inPush=(push,turn,fn)=>({...push,[turn]:fn(push[turn])})

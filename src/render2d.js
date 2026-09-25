@@ -40,6 +40,10 @@ export function createRenderer2D(canvas,options={}){
     if(o.t==='blackhole'){const gr=g.createRadialGradient(o.x,o.y,2,o.x,o.y,o.r);gr.addColorStop(0,'rgba(0,0,0,.95)');gr.addColorStop(.25,'rgba(40,10,70,.6)');gr.addColorStop(1,'rgba(90,40,160,0)');g.fillStyle=gr;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill()}
    }
    for(const o of game.push?.obstacles||[])if(o.t==='smoke'){const gr=g.createRadialGradient(o.x,o.y,4,o.x,o.y,o.r);gr.addColorStop(0,'rgba(200,200,205,.8)');gr.addColorStop(1,'rgba(200,200,205,.15)');g.fillStyle=gr;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill()}
+   for(const o of game.push?.obstacles||[]){
+    if(o.t==='pswitch'){g.fillStyle='#ffd75d';g.strokeStyle='#5a3a00';g.lineWidth=1.5;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke();g.fillStyle='#5a3a00';g.font='bold 10px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('P',o.x,o.y+.5)}
+    if(o.t==='bonushole'){g.fillStyle='#07100c';g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.strokeStyle='#5bd6ff';g.lineWidth=3;g.beginPath();g.arc(o.x,o.y,o.r+3,0,7);g.stroke();g.fillStyle='#5bd6ff';g.font='bold 11px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(o.reward.item?'?':'+'+o.reward.gems,o.x,o.y+(o.y<60?PR+8:-PR-6))}
+   }
    for(const o of game.push?.obstacles||[])if(o.t==='mine'){g.fillStyle='#2a0b0b';g.strokeStyle='#ff5a3c';g.lineWidth=2;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke();g.fillStyle='#ff5a3c';g.beginPath();g.arc(o.x,o.y,2.5,0,7);g.fill()}
    if(game.placing?.pos&&game.phase==='aim'){
     const pl=game.placing,cue=game.balls[0],ok=game.placingOk(),col=ok?'#5dff9a':'#ff5d5d'

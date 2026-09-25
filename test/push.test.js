@@ -464,3 +464,15 @@ test('dealing can now bring hazards, at most one of a kind, and a hurricane repo
  const twice=afterShot(withPush({turns:1,obstacles:[{t:'slick',variant:'ice',x:9,y:9,r:40,ttl:5}]}),{shooter:'a',nextTurn:'b',turnChanged:true,balls:[],bounds:BOUNDS,rand:seeded(3)})
  assert.ok(twice.push.obstacles.filter(o=>o.t==='slick').length<=1,'never two slicks')
 })
+
+// ---- bonuses ----
+test('a P switch and a bonus hole are dealt as records; the hole sits on a long rail with its reward',()=>{
+ const ps=makeHazard(spawnOf('pswitch'),[cueBall],BOUNDS,seeded(2)).obstacles[0];assert.equal(ps.t,'pswitch');assert.ok(validPush({...withPush(),obstacles:[ps]}))
+ for(let i=1;i<=60;i++){
+  const h=makeHazard(spawnOf('bonushole',{ttl:1,reward:i%2?{gems:10}:{item:'bomb'}}),[],BOUNDS,seeded(i)).obstacles[0]
+  assert.ok(h.y===28||h.y===352,'on a long rail');assert.ok(h.x>=140&&h.x<=560);assert.equal(h.ttl,1);assert.ok(validPush({...withPush(),obstacles:[h]}))
+ }
+ assert.equal(validPush({...withPush(),obstacles:[{t:'bonushole',x:1,y:1,r:5,reward:{item:'nuke'},ttl:1}]}),false,'an unknown item')
+ assert.equal(validPush({...withPush(),obstacles:[{t:'bonushole',x:1,y:1,r:5,reward:{gems:1000},ttl:1}]}),false,'too many gems')
+ assert.equal(hazardOf(ps),'pswitch')
+})

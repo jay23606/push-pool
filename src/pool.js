@@ -10,7 +10,9 @@ import {powerCost,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS} from './push/pow
 import {placeItem,whyNotPlace,isPlaceable,MINE_BLAST_R,MINE_BLAST_POWER} from './push/placing.js'
 import {isTossable,landing,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS} from './push/toss.js'
 import {DUMMY_POINTS,scatterDummies} from './push/dummy.js'
-import {stepHazards} from './push/hazards.js'
+import {stepHazards,PSWITCH_GEM} from './push/hazards.js'
+import {giveItem} from './push/economy.js'
+import {freeSpot} from './push/logic-spots.js'
 import {ITEMS} from './push/items.js'
 import {newRun as newRogueRun,judge as judgeRogue,choose as chooseRogue,advance as advanceRogue,offer as offerRogue,POCKET_BOOST} from './rogue.js'
 import {other,remaining as countLeft,nearestPocket,validCueSpot,judgeShot,opposite,normalizeGroup,modeOf,lowestBall,nineRespot,MODES,isScoreMode,ONE_POCKET,targetFor,isRotation,MONEY,trianglePositions,kind,PUSH_POT} from './rules.js'
@@ -325,10 +327,11 @@ export class PoolGame{
  // The six pockets, and Chaos Pool's bonus pocket while there is one (numbered after the six).
  pocketList(){
   // rebuilt when the twist changes, or when the table size does (the pockets are a size of their own)
-  if(!this._pockets||this.fx!==this._pocketFx||this._pocketPR!==PR){
-   this._pocketFx=this.fx;this._pocketPR=PR
-   const bp=bonusPocket(this.fx)
-   this._pockets=bp?[...POCKETS.map(q=>({x:q[0],y:q[1],r:PR})),{x:bp.x,y:bp.y,r:bp.r}]:POCKETS.map(q=>({x:q[0],y:q[1],r:PR}))
+  if(!this._pockets||this.fx!==this._pocketFx||this._pocketPR!==PR||this._pocketObs!==this.push?.obstacles){
+   this._pocketFx=this.fx;this._pocketPR=PR;this._pocketObs=this.push?.obstacles
+   const bp=bonusPocket(this.fx),base=POCKETS.map(q=>({x:q[0],y:q[1],r:PR}))
+   // P.U.S.H. Pool's bonus holes are pockets too, numbered after the six
+   this._pockets=this.mode==='push'?[...base,...this.bonusHoles().map(o=>({x:o.x,y:o.y,r:o.r}))]:bp?[...base,{x:bp.x,y:bp.y,r:bp.r}]:base
   }
   return this._pockets
  }
@@ -344,6 +347,7 @@ export class PoolGame{
  pushAfterShot(shooter,v){
   if(!this.push)return
   const r=afterShot(this.push,{shooter,nextTurn:v.nextTurn,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY}})
+  this.balls=this.balls.filter(b=>b.k!=='dummy'||b.on)     // dummies that dropped in a pocket are gone for good
   this.push=r.push;this.placing=null;this.syncObstacles()
   // what the hazards did: a black hole that closed gives its balls back, a hurricane rains dummies
   for(const rel of r.release||[])this.releaseBall(rel)
@@ -471,6 +475,31 @@ export class PoolGame{
   }
   b.on=true;clearMotion(b)
  }
+ bonusHoles(){return (this.push?.obstacles||[]).filter(o=>o.t==='bonushole')}
+ // Anything that drops into a bonus hole -- any ball, the cue ball, a dummy -- pays its reward to the shooter, then comes back:
+ // a real ball or the cue ball to a free spot, a dummy not at all. It is not a pot and not a scratch, and the hole stays.
+ sinkBonus(b,i){
+  const hole=this.bonusHoles()[i];if(!hole)return
+  const turn=this.turn,r=hole.reward
+  if(r.item){this.push={...this.push,[turn]:giveItem(this.push[turn],r.item)};this.flash('Bonus · '+ITEMS[r.item].name)}
+  else{this.score={...this.score,[turn]:(this.score[turn]||0)+r.gems};this.flash('Bonus · +'+r.gems)}
+  b.vx=b.vy=0
+  if(b.k==='dummy'){b.on=false;return}
+  const head=b.k==='cue'&&!this.balls.some(q=>q!==b&&q.on&&Math.hypot(q.x-154,q.y-190)<R*2.1)?[154,190]:freeSpot(this.balls,[],{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY},Math.random)
+  if(head){b.x=head[0];b.y=head[1]}
+  clearMotion(b)
+ }
+ // A P switch is set off by the cue ball alone: every dummy ball on the table turns into a gem, and the switch is gone.
+ switchCheck(){
+  const list=this.push?.obstacles;if(!list?.some(o=>o.t==='pswitch'))return
+  const cue=this.balls[0],hit=cue.on?list.filter(o=>o.t==='pswitch'&&Math.hypot(cue.x-o.x,cue.y-o.y)<R+o.r):[]
+  if(!hit.length)return
+  const dummies=this.balls.filter(b=>b.k==='dummy'&&b.on)
+  const gems=dummies.slice(0,Math.max(0,40-(this.push.pickups?.length||0))).map(b=>({kind:'gem',v:PSWITCH_GEM,x:Math.round(b.x),y:Math.round(b.y),ttl:2}))
+  for(const b of dummies)b.on=false
+  this.push={...this.push,obstacles:list.filter(o=>!hit.includes(o)),pickups:[...(this.push.pickups||[]),...gems]};this.syncObstacles()
+  this.flash(gems.length?'P switch · dummies to gems':'P switch')
+ }
  // A landmine goes off when any ball rolls over it: the balls around it are thrown outward and the mine is gone.
  mineCheck(){
   const list=this.push?.obstacles;if(!list?.some(o=>o.t==='mine'))return
@@ -496,13 +525,13 @@ export class PoolGame{
   this.flash(items.length?'Picked up '+ITEMS[items[0].id].name:'+'+gems)
  }
  sub(dt){
-  this.collect();this.shotEffects(dt);if(this.mode==='push'){this.mineCheck();if(this.push?.obstacles?.some(o=>o.t==='slick'||o.t==='blackhole'))this.hazards(dt)}
+  this.collect();this.shotEffects(dt);if(this.mode==='push'){this.mineCheck();this.switchCheck();if(this.push?.obstacles?.some(o=>o.t==='slick'||o.t==='blackhole'))this.hazards(dt)}
   const well=this.fx&&this.fx.type==='well'?this.fx:null,pockets=this.pocketList(),scale=this.pocketScale()
   for(const b of this.balls){
    if(!b.on)continue
    if(well&&!airborne(b))wellPull(b,well,dt)
    integrate(b,dt)
-   for(let p=0;p<pockets.length;p++){const q=pockets[p];if(!airborne(b)&&Math.hypot(b.x-q.x,b.y-q.y)<q.r*(p<6?scale:1)){b.on=false;if(b.k==='cue')this.scratch=true;else{this.potted.push(b);(this.pocketOf??={})[b.n]=p;if(!this.firstObjectPotted&&(b.k==='solid'||b.k==='stripe'))this.firstObjectPotted=b}if(b.k==='eight')this.eightPocket=p;this.flash(this.pottedMessage(b));break}}
+   for(let p=0;p<pockets.length;p++){const q=pockets[p];if(!airborne(b)&&Math.hypot(b.x-q.x,b.y-q.y)<q.r*(p<6?scale:1)){if(p>=6&&this.mode==='push'){this.sinkBonus(b,p-6);break}b.on=false;if(b.k==='cue')this.scratch=true;else{this.potted.push(b);(this.pocketOf??={})[b.n]=p;if(!this.firstObjectPotted&&(b.k==='solid'||b.k==='stripe'))this.firstObjectPotted=b}if(b.k==='eight')this.eightPocket=p;this.flash(this.pottedMessage(b));break}}
    if(!b.on)continue
    if(railBounce(b)){
     // which balls touched a cushion, and whether the cue did so before it

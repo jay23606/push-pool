@@ -1,4 +1,4 @@
-import {R} from '../table.js'
+import {R,PR,M,H} from '../table.js'
 import {freeSpot} from './logic-spots.js'
 import {SPAWN_TYPES} from './spawns.js'
 
@@ -18,7 +18,8 @@ export const MAX_DUMMIES_ON_TABLE=40       // hurricanes and the like stop once 
 
 // per second: what a slick does to the speed of a ball on it
 const SLICK_RATE={ice:.55,electric:1.3,sand:-2.2,plasma:-7}
-export const HAZARD_TYPES=['wormhole','slick','blackhole','hurricane']
+export const HAZARD_TYPES=['wormhole','slick','blackhole','hurricane','pswitch','bonushole']
+export const PSWITCH_R=9,PSWITCH_GEM=5      // hit it and every dummy on the table becomes a gem worth this much
 
 const between=(rand,[lo,hi])=>lo+Math.floor(rand()*(hi-lo+1))
 
@@ -39,6 +40,20 @@ export function makeHazard(spawn,balls,bounds,rand=Math.random,taken=[]){
  if(spawn.type==='blackhole'){
   const at=freeSpot([],taken,bounds,rand);if(!at)return {obstacles:[],dummies:0}
   return {obstacles:[{t:'blackhole',x:at[0],y:at[1],r:HOLE_R,held:[],ttl}],dummies:0}
+ }
+ if(spawn.type==='pswitch'){
+  const at=freeSpot(balls,taken,bounds,rand);if(!at)return {obstacles:[],dummies:0}
+  return {obstacles:[{t:'pswitch',x:at[0],y:at[1],r:PSWITCH_R,ttl}],dummies:0}
+ }
+ if(spawn.type==='bonushole'){
+  // on a long rail, clear of the corner and side pockets and of any other bonus hole
+  const holes=taken.filter(o=>o.t==='bonushole')
+  for(let i=0;i<20;i++){
+   const x=Math.round(140+rand()*420),y=rand()<.5?M:H-M
+   if(holes.some(o=>Math.hypot(o.x-x,o.y-y)<PR*3))continue
+   return {obstacles:[{t:'bonushole',x,y,r:PR*.9,reward:spawn.reward||{gems:10},ttl}],dummies:0}
+  }
+  return {obstacles:[],dummies:0}
  }
  if(spawn.type==='hurricane'){
   const dummies=balls.filter(b=>b.k==='dummy'&&b.on).length
@@ -84,6 +99,6 @@ export function ageHazards(list){
 }
 
 // The hazard a live record belongs to, for the "not two of a kind" rule.
-export const hazardOf=o=>o.t==='portal'?'wormhole':(o.t==='slick'||o.t==='blackhole')?o.t:null
+export const hazardOf=o=>o.t==='portal'?'wormhole':(o.t==='slick'||o.t==='blackhole'||o.t==='pswitch'||o.t==='bonushole')?o.t:null
 export const isHazardSpawn=type=>HAZARD_TYPES.includes(type)&&Boolean(SPAWN_TYPES[type])
 export const RADIUS_CLEAR=R*2
