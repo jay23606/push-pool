@@ -698,3 +698,22 @@ test('a shot that never settles is stopped after thirty seconds instead of hangi
  strike(cue,300,0);g.startShot();roll(g,40)
  assert.equal(g.phase,'aim','the table was stopped and the shot resolved');assert.ok(g.balls.every(b=>Math.abs(b.vx)<1&&Math.abs(b.vy)<1))
 })
+
+// ---- touch placing ----
+import {bindGameInput} from '../src/game-input.js'
+
+test('on a touch screen a tap stages the placement and a second tap on the ghost puts it down',()=>{
+ const {g}=has(['wall']);g.canControl=()=>true;clear(g);g.balls[0].on=true;g.balls[0].x=200;g.balls[0].y=190
+ const listeners={};const el=(name)=>({addEventListener:(t,f)=>{listeners[name+':'+t]=f},removeEventListener(){}})
+ g.surface={...el('surface'),setPointerCapture(){},releasePointerCapture(){}};g.power={...el('power'),value:50};g.shoot=el('shoot')
+ g.powerOut={textContent:''};g.point=e=>({x:e.x,y:e.y})
+ globalThis.document={addEventListener(){},removeEventListener(){},querySelector:()=>null}
+ bindGameInput(g)
+ g.startPlacing('wall')
+ const down=(x,y,type)=>listeners['surface:pointerdown']({x,y,pointerType:type,button:0,pointerId:1})
+ down(230,140,'touch');assert.ok(g.placing,'the first tap only stages it');assert.equal(g.push.obstacles.length,0);assert.deepEqual(g.placing.pos,{x:230,y:140})
+ down(250,230,'touch');assert.deepEqual(g.placing.pos,{x:250,y:230},'a tap elsewhere moves the ghost');assert.equal(g.push.obstacles.length,0)
+ down(252,232,'touch');assert.equal(g.placing,null,'a tap on the ghost puts it down');assert.equal(g.push.obstacles.length,1)
+ g.push={...g.push,a:{...g.push.a,items:['wall']}};g.startPlacing('wall')
+ down(230,140,'mouse');assert.equal(g.placing,null,'a mouse click places at once, as before')
+})

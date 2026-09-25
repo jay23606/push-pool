@@ -70,6 +70,13 @@ export function renderPushPanel(game){
   top.append(el('div','push-armed',on.join(' · ')))
  }
  const tools=el('div','push-tools')
+ // while something is being placed: turn it, put it down, or give up (a phone has no Q/E keys or wheel, and no hover)
+ if(st.placing){
+  if(!isTossable(st.placing)){
+   tools.append(button('push-chip use','↺','Turn it',()=>game.turnPlacing(-.4)),button('push-chip use','↻','Turn it',()=>game.turnPlacing(.4)),button('push-chip use on','Place','Put it down',()=>game.confirmPlace()))
+  }
+  tools.append(button('push-chip use','Cancel','',()=>game.cancelPlacing()))
+ }
  const count=Object.keys(st.powers).length+st.items.length
  tools.append(button('push-chip use push-toggle'+(st.offers?' attn':''),st.offers?'Level up!':open?'Hide':`Powers & items${count?` (${count})`:''}`,'',()=>setSheet(game,!open)))
  tools.append(button('push-chip use','? How it works','',showHelp))
