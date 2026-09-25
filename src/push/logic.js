@@ -11,7 +11,7 @@ import {isArmable,powerLevel} from './powers.js'
 
 // the spawns implemented so far; the rest of the catalogue is dealt only once its effect exists
 export const LIVE_SPAWNS=['gemdrop','itemdrop',...HAZARD_TYPES]
-export const GEM_LIFE=2,ITEM_LIFE=5
+export const GEM_LIFE=2,ITEM_LIFE=5,MAX_PICKUPS=40,MAX_OBSTACLE_RECORDS=60
 const HAZARD_MESSAGE={volcano:'A volcano erupts!',barf:'Barf!',pswitch:'A P switch has appeared',bonushole:'A bonus hole has opened',wormhole:'A wormhole has opened',slick:'A slick has appeared',blackhole:'A black hole has appeared',hurricane:'Hurricane!'}
 const REACH=R+8       // how close the cue ball must pass to a pickup to take it
 
@@ -70,6 +70,9 @@ export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=
    }
   }
  }
+ // the wire format allows this many, and a table with more is a mess anyway: the oldest go first
+ if(next.pickups.length>MAX_PICKUPS)next={...next,pickups:next.pickups.slice(-MAX_PICKUPS)}
+ if(next.obstacles.length>MAX_OBSTACLE_RECORDS)next={...next,obstacles:next.obstacles.slice(-MAX_OBSTACLE_RECORDS)}
  return {push:next,messages,release,dummies,blasts,spews,barf}
 }
 

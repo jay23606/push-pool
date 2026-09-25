@@ -706,3 +706,21 @@ test('a black hole always wins in the end: a ball thrown around it settles, and 
  }
  assert.ok(swallowed,'caught within forty seconds')
 })
+
+test('the pickup list never grows past what the wire allows, however many drops land',()=>{
+ const full=Array.from({length:39},(_,i)=>({kind:'gem',v:1,x:60+i*14,y:60,ttl:9}))
+ let worst=0
+ for(let i=1;i<=300;i++){
+  const r=afterShot(withPush({turns:1,pickups:full}),{shooter:'a',nextTurn:'b',turnChanged:true,balls:[],bounds:BOUNDS,rand:seeded(i)})
+  worst=Math.max(worst,r.push.pickups.length);assert.ok(validPush(r.push),'valid on the wire')
+ }
+ assert.ok(worst<=40)
+})
+
+test('the obstacle list is capped at what the wire allows too, oldest first',()=>{
+ const many=Array.from({length:59},(_,i)=>({t:'bumper',x:60+i*10,y:100,r:5,ttl:9}))
+ for(let i=1;i<=200;i++){
+  const r=afterShot(withPush({turns:1,obstacles:many}),{shooter:'a',nextTurn:'b',turnChanged:true,balls:[],bounds:BOUNDS,rand:seeded(i)})
+  assert.ok(r.push.obstacles.length<=60);assert.ok(validPush(r.push))
+ }
+})
