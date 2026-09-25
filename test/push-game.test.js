@@ -376,7 +376,7 @@ test('a barf gives back what the pockets last swallowed',()=>{
  const {g}=game();clear(g);g.balls[0].on=true;g.balls[0].x=154;g.balls[0].y=190
  const potted=g.balls[3];potted.on=false
  g.pocketLog=[{p:1,n:potted.n,k:potted.k},{p:1,n:-1,k:'dummy'}]
- g.barf()
+ const r=Math.random;Math.random=()=>.99;try{g.barf()}finally{Math.random=r}   // .99: it takes as many as it can, up to five
  assert.equal(potted.on,true,'the real ball is back');assert.ok(g.balls.some(b=>b.k==='dummy'),'and a dummy was made anew');assert.equal(g.pocketLog.length,0)
 })
 
