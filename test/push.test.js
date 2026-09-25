@@ -648,3 +648,18 @@ test('oneShot: a legal pot scores and owes a level-up but the turn passes to the
  assert.equal(judgeScoreGame(shot({potted:[real(3)],oneShot:false})).nextTurn,'a','without the rule the shooter keeps the turn')
  const eightShot=eight({groups:{a:'solid',b:'stripe'},potted:[solid(1)]});assert.equal(judgeShot(eightShot).nextTurn,'a')
 })
+
+// ---- the in-game help ----
+import {helpSections} from '../src/push/help.js'
+import {POWER_IDS as ALL_POWERS} from '../src/push/powers.js'
+import {DROPPABLE} from '../src/push/items.js'
+
+test('the help lists every power, every droppable item and every live spawn, with the real numbers',()=>{
+ const sections=helpSections(),by=t=>sections.find(s=>s.title===t)
+ assert.equal(by('Powers').rows.length,ALL_POWERS.length);assert.equal(by('Items').rows.length,DROPPABLE.length)
+ assert.ok(!by('Items').rows.some(r=>r.name==='Roller'),'an unbuilt item is not advertised')
+ assert.ok(by('What shows up on the table').rows.every(r=>r.text.length>10),'every spawn is explained')
+ assert.match(by('The idea').lines[0],new RegExp('first to '+PUSH_TARGET,'i'))
+ assert.ok(by('Powers').rows.every(r=>/levels cost \d+ \/ \d+ \/ \d+/.test(r.detail)),'costs come from the catalogue')
+ assert.ok(by('Items').rows.every(r=>r.detail),'every item says how it is used')
+})

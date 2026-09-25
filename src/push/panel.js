@@ -4,6 +4,7 @@ import {isPlaceable} from './placing.js'
 import {isTossable} from './toss.js'
 import {ITEMS as ITEM_DEFS} from './items.js'
 import {isPush} from '../rules.js'
+import {renderHelp} from './help.js'
 import {isArmable,TRAIL_VARIANTS} from './powers.js'
 
 // The P.U.S.H. Pool side panel: your points, powers and items, and the level-up choice when one is owed. It is plain DOM
@@ -21,6 +22,17 @@ export function pushPanelState(game){
   armed:game.armed||{},trailVariant:game.trailVariant||'ice',armedItem:game.armedItem||null,powder:Boolean(mine.powder),canMull:game.phase==='aim'&&Boolean(game.undo)&&!game.spectator&&!game.tossing,canUse:game.turn===me&&!game.spectator&&game.phase==='aim'&&!game.ballInHand,placing:game.placing?.item||null}
 }
 
+// The reference, in a dialog made on first use.
+function showHelp(){
+ let d=document.getElementById('push-help')
+ if(!d){
+  d=document.createElement('dialog');d.id='push-help'
+  const body=el('div','push-help-body'),close=el('button','ghost','Close');close.type='button';close.onclick=()=>d.close()
+  d.append(el('h2',null,'How P.U.S.H. Pool works'),body,close);document.body.append(d);renderHelp(body)
+ }
+ d.showModal();d.scrollTop=0
+}
+
 export function renderPushPanel(game){
  if(!isPush(game.mode)){if(game.pushPanel){game.pushPanel.remove();game.pushPanel=null;game.pushSig=''}return}
  const st=pushPanelState(game)
@@ -33,7 +45,11 @@ export function renderPushPanel(game){
  if(sig===game.pushSig)return
  game.pushSig=sig
  const p=game.pushPanel;p.replaceChildren()
- p.append(el('div','push-pts',`${st.points} pts`))
+ {
+  const top=el('div','push-top');top.append(el('div','push-pts',`${st.points} pts`))
+  const help=el('button','push-chip use','? How it works');help.type='button';help.onclick=()=>showHelp()
+  top.append(help);p.append(top)
+ }
  if(st.offers){
   p.append(el('div','push-h',`Level up · choose a power${st.picks>1?` (${st.picks} owed)`:''}`))
   const row=el('div','push-offers')

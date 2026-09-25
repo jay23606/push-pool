@@ -21,7 +21,7 @@ export const ITEMS={
  poppowder: {name:'Pop powder',use:'instant',when:'before',rarity:5,blurb:'Every collision makes a small explosion on the next shot.'},
  rutabaga:  {name:'Rutabaga',  use:'toss', when:'before',rarity:4,blurb:'Makes collisions unstable until it is pocketed.'},
  cluster:   {name:'Cluster',   use:'toss', when:'before',rarity:5,blurb:'Breaks into five ping-pong balls when hit.'},
- cannon:    {name:'Cannon',    use:'shoot',when:'before',rarity:1,blurb:'Fire a cannon ball at full power. Rare.'}
+ cannon:    {name:'Cannon',    use:'shoot',when:'before',rarity:1,blurb:'Your next shot sends the cue ball out heavy and at full power. Rare.'}
 }
 export const ITEM_IDS=Object.keys(ITEMS)
 // Items in the catalogue with no working effect yet: they are never dropped, so nobody is handed something they cannot use.
