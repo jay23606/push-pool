@@ -10,7 +10,7 @@ export const ITEMS={
  pillar:    {name:'Pillar',    use:'place',range:'short', when:'before',rarity:8,blurb:'An immovable round barrier.',group:'barrier'},
  cannonball:{name:'Cannon ball',use:'place',range:'short',when:'before',rarity:5,blurb:'A heavy ball: it barely moves when hit, and sends what it hits flying.',group:'block'},
  pingpong:  {name:'Ping-pong ball',use:'place',range:'short',when:'before',rarity:8,blurb:'A light ball: any hit sends it flying.',group:'block'},
- roller:    {name:'Roller',    use:'place',range:'short', when:'before',rarity:6,blurb:'A movable cylinder that rolls.',group:'block'},
+ roller:    {name:'Roller',    use:'place',range:'short', when:'before',rarity:6,blurb:'A movable ball that can only roll along the way you turned it.',group:'block'},
  hole:      {name:'Hole',      use:'place',range:'medium',when:'before',rarity:5,blurb:'Catches a slow ball; a fast one skips over.'},
  fan:       {name:'Fan',       use:'place',range:'medium',when:'before',rarity:5,blurb:'A directional repelling force for one shot.'},
  bomb:      {name:'Bomb',      use:'toss', when:'before',rarity:6,blurb:'Explodes when it comes to rest.'},
@@ -25,7 +25,7 @@ export const ITEMS={
 }
 export const ITEM_IDS=Object.keys(ITEMS)
 // Items in the catalogue with no working effect yet: they are never dropped, so nobody is handed something they cannot use.
-export const UNBUILT_ITEMS=['roller']
+export const UNBUILT_ITEMS=[]
 export const DROPPABLE=ITEM_IDS.filter(id=>!UNBUILT_ITEMS.includes(id))
 
 // A weighted pick from the catalogue. `rand` is injectable (a function returning [0,1)).

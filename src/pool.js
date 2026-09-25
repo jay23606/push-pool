@@ -9,7 +9,7 @@ import {renderPushPanel} from './push/panel.js'
 import {powerCost,powerLevel,TRAIL_STEP,TRAIL_R,TRAIL_LIFE,TRAIL_MAX,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS,TILT_IMPULSE,NUDGE_POWER,CANNON_MULT,CANNON_MASS,POWDER_POPS,POWDER_RADIUS_R,POWDER_FORCE} from './push/powers.js'
 import {placeItem,whyNotPlace,isPlaceable,MINE_BLAST_R,MINE_BLAST_POWER} from './push/placing.js'
 import {isTossable,landing,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS} from './push/toss.js'
-import {DUMMY_POINTS,scatterDummies,scatterAround,makeDummy,nextDummyId,makeRutabaga,isRutabaga,makeLight,makeHeavy} from './push/dummy.js'
+import {DUMMY_POINTS,scatterDummies,scatterAround,makeDummy,nextDummyId,makeRutabaga,isRutabaga,makeLight,makeHeavy,makeRoller,isRoller} from './push/dummy.js'
 import {PIGGY_GEMS,PIGGY_R,PIGGY_LIFE,CLUSTER_SIZE} from './push/toss.js'
 import {rollGem} from './push/items.js'
 import {planUses} from './push/ai.js'
@@ -32,6 +32,7 @@ export const aimStep=(aim,previous,current,sensitivity=.3)=>aim+Math.atan2(Math.
 export const openingAim=balls=>Math.atan2(balls[1].y-balls[0].y,balls[1].x-balls[0].x)
 export function rayToRail(x,y,dx,dy){const tx=dx>0?(MAXX-x)/dx:dx<0?(MINX-x)/dx:Infinity,ty=dy>0?(MAXY-y)/dy:dy<0?(MINY-y)/dy:Infinity;return Math.max(0,Math.min(tx>=0?tx:Infinity,ty>=0?ty:Infinity))}
 export function bankPath(x,y,dx,dy,bounces=2){const points=[];for(let i=0;i<bounces;i++){const d=rayToRail(x,y,dx,dy),p={x:x+dx*d,y:y+dy*d};points.push(p);if(Math.abs(p.x-MINX)<.1||Math.abs(p.x-MAXX)<.1)dx=-dx;if(Math.abs(p.y-MINY)<.1||Math.abs(p.y-MAXY)<.1)dy=-dy;x=p.x+dx*.05;y=p.y+dy*.05}return points}
+const MAX_ROLL_SECONDS=30
 export class PoolGame{
  constructor(o){Object.assign(this,o);this.mode=modeOf(o.mode);this.house=normalizeHouse(o.house);this.oneShot=isPush(this.mode)&&this.house.oneShot;this.breaker='a';this.scoreTarget=this.mode==='straight'?this.house.straightTo:(this.scoreTarget||targetFor(this.mode));this.spectator=Boolean(o.spectator);this.aimSensitivity=o.aimSensitivity??.3;this.aimStep=(a,p,c)=>aimStep(a,p,c,this.aimSensitivity);this.surface=o.surface||o.renderer.el;this.me=this.host?'a':'b';this.round=1;this.ready=this.practice;this.power.value=45;this.bind();this.resetRack();this.simAt=this.drawnAt=performance.now();this.raf=requestAnimationFrame(t=>this.loop(t));this.predictor=createPredictor();this.predicted=null;if(this.host)this.background=setInterval(()=>{if(typeof document!=='undefined'&&document.hidden)this.advance(performance.now())},250);if(this.practice)this.sync()}
  // ---- Rogue Pool (see rogue.js) ----
@@ -363,6 +364,7 @@ export class PoolGame{
   const held=new Set((this.push.obstacles||[]).flatMap(o=>o.held||[]))
   this.balls=this.balls.filter(b=>b.k!=='dummy'||b.on||held.has(b.n))
   this.push=r.push;this.placing=null
+  if(this.push.rollers?.length)this.push={...this.push,rollers:this.push.rollers.filter(q=>this.balls.some(b=>b.n===q.n))}      // a roller that was sunk is gone
   this.layTrail()
   this.syncObstacles()
   const feats=shotFeats({real:v.levelUps||0,contacts:this.contacts?.size||0,foul:Boolean(v.foul)})
@@ -396,7 +398,7 @@ export class PoolGame{
   take.forEach((e,i)=>{
    const x=px+dx/d*(R*2.8+i*R*2.3),y=py+dy/d*(R*2.8+i*R*2.3)
    let ball
-   if(e.k==='dummy'){ball=makeDummy(nextDummyId(this.balls),x,y);this.balls.push(ball)}
+   if(e.k==='dummy'){const id=nextDummyId(this.balls);if(id==null)return;ball=makeDummy(id,x,y);this.balls.push(ball)}
    else{ball=this.balls.find(q=>q.n===e.n);if(!ball||ball.on)return;ball.on=true;ball.x=x;ball.y=y;clearMotion(ball)}
    this.placeNear(ball,x,y)
   })
@@ -464,7 +466,9 @@ export class PoolGame{
    this.balls.push(...scatterAround(this.balls,CLUSTER_SIZE,spot.x,spot.y,Math.random,'light'));this.sync();this.flash('Cluster · five ping-pong balls');return
   }
   if(eff.kind==='rutabaga'){
-   const rut=makeRutabaga(this.balls,spot.x,spot.y);this.balls.push(rut);this.placeNear(rut,spot.x,spot.y);this.sync();this.flash('Rutabaga');return
+   const rut=makeRutabaga(this.balls,spot.x,spot.y)
+   if(rut){this.balls.push(rut);this.placeNear(rut,spot.x,spot.y)}
+   this.sync();this.flash('Rutabaga');return
   }
   if(eff.kind==='piggy'){
    const gems=PIGGY_GEMS[0]+Math.floor(Math.random()*(PIGGY_GEMS[1]-PIGGY_GEMS[0]+1)),pig={t:'bumper',x:spot.x,y:spot.y,r:PIGGY_R,piggy:gems,ttl:PIGGY_LIFE}
@@ -517,7 +521,12 @@ export class PoolGame{
   const {drops,...rest}=next
   this.push=rest
   // a ping-pong ball is a dummy ball dropped where you put it
-  for(const d of drops||[])this.balls.push(d.kind==='heavy'?makeHeavy(this.balls,d.x,d.y):makeLight(this.balls,d.x,d.y))
+  for(const d of drops||[]){
+   const ball=d.kind==='roller'?makeRoller(this.balls,d.x,d.y):d.kind==='heavy'?makeHeavy(this.balls,d.x,d.y):makeLight(this.balls,d.x,d.y)
+   if(!ball)continue
+   this.balls.push(ball)
+   if(d.kind==='roller')this.push={...this.push,rollers:[...(this.push.rollers||[]).filter(q=>q.n!==ball.n),{n:ball.n,rot:d.rot||0}]}
+  }
   this.syncObstacles();this.sync();this.flash(ITEMS[item].name+' placed')
  }
  // Powers armed before a shot. Clicking a power in the panel steps it through its levels and back off.
@@ -595,6 +604,14 @@ export class PoolGame{
   for(const b of dummies)b.on=false
   this.push={...this.push,obstacles:list.filter(o=>!hit.includes(o)),pickups:[...(this.push.pickups||[]),...gems]};this.syncObstacles()
   this.flash(gems.length?'P switch · dummies to gems':'P switch')
+ }
+ // A roller can only roll along its axis: whatever hit it, only that much of the push stays.
+ rollers(){
+  for(const r of this.push.rollers){
+   const b=this.balls.find(q=>q.n===r.n);if(!b||!b.on||!isRoller(b))continue
+   const c=Math.cos(r.rot),s=Math.sin(r.rot),vp=b.vx*c+b.vy*s
+   b.vx=vp*c;b.vy=vp*s
+  }
  }
  // A landmine goes off when any ball rolls over it: the balls around it are thrown outward and the mine is gone.
  mineCheck(){
@@ -695,7 +712,7 @@ export class PoolGame{
   this.flash(items.length?'Picked up '+ITEMS[items[0].id].name:'+'+gems)
  }
  sub(dt){
-  this.collect();this.shotEffects(dt);if(isPush(this.mode)){this.mineCheck();this.switchCheck();this.piggyCheck();if(this.push?.obstacles?.some(o=>o.t==='slick'||o.t==='blackhole'||o.t==='fan'||o.t==='pit'))this.hazards(dt)}
+  this.collect();this.shotEffects(dt);if(this.push?.rollers?.length)this.rollers();if(isPush(this.mode)){this.mineCheck();this.switchCheck();this.piggyCheck();if(this.push?.obstacles?.some(o=>o.t==='slick'||o.t==='blackhole'||o.t==='fan'||o.t==='pit'))this.hazards(dt)}
   const well=this.fx&&this.fx.type==='well'?this.fx:null,pockets=this.pocketList(),scale=this.pocketScale()
   for(const b of this.balls){
    if(!b.on)continue
@@ -787,6 +804,7 @@ export class PoolGame{
   return true
  }
  resolve(){
+  this.rollTime=0
   if(this.tossing)return this.resolveToss()
   if(this.drill)return this.resolveDrill()
   if(this.rogueSeed!=null)return this.resolveRogue()
@@ -966,6 +984,9 @@ export class PoolGame{
    for(let i=0;i<n;i++)this.sub(STEP/n)
    this.acc-=STEP;stepped+=STEP
    this.simClock=(this.simClock||0)+STEP*1000
+   // a table that has not settled after this long (a ball orbiting a black hole, say) is stopped where it is, so a game cannot hang
+   this.rollTime=(this.rollTime||0)+STEP
+   if(this.rollTime>MAX_ROLL_SECONDS){this.balls.forEach(clearMotion);this.rollTime=0;this.stalls=(this.stalls||0)+1}
    if(this.rec&&this.simClock-(this.recAt??-1e9)>=40){this.recAt=this.simClock;this.rec.frame(this.simClock,this.balls)}
    if(this.balls.every(b=>!b.on||atRest(b))){this.resolve();break}
   }

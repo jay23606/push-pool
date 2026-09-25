@@ -1,5 +1,6 @@
 import {R} from '../table.js'
 import {ITEMS} from './items.js'
+import {hasRoomFor} from './dummy.js'
 import {blocks,WALL_R} from '../obstacles.js'
 import {useItem,whyNotItem} from './economy.js'
 
@@ -11,7 +12,7 @@ import {useItem,whyNotItem} from './economy.js'
 export const RANGE={short:100,medium:180}
 export const OBSTACLE_LIFE=6,MAX_OBSTACLES=12
 export const WALL_LEN=64,CUBE_SIDE=34,PILLAR_R=10
-export const PLACEABLE=['wall','cube','pillar','landmine','fan','hole','pingpong','cannonball']
+export const PLACEABLE=['wall','cube','pillar','landmine','fan','hole','pingpong','cannonball','roller']
 export const FAN_R=90,FAN_LIFE=1,PIT_R=15,PIT_LIFE=6
 export const MINE_R=8,MINE_LIFE=8,MINE_BLAST_R=6,MINE_BLAST_POWER=900   // the blast reaches this many ball radii
 export const isPlaceable=id=>PLACEABLE.includes(id)
@@ -25,6 +26,7 @@ export function shapeOf(id,x,y,rot=0){
  if(id==='hole')return [{t:'pit',x,y,r:PIT_R}]
  if(id==='pingpong')return [{t:'ball',x,y,r:R*.7}]
  if(id==='cannonball')return [{t:'ball',x,y,r:R}]
+ if(id==='roller')return [{t:'ball',x,y,r:R,rot}]
  if(id==='wall'){const h=WALL_LEN/2;return [{t:'wall',x1:x-c*h,y1:y-s*h,x2:x+c*h,y2:y+s*h}]}
  if(id==='cube'){
   const h=CUBE_SIDE/2,pts=[[-h,-h],[h,-h],[h,h],[-h,h]].map(([px,py])=>[x+px*c-py*s,y+px*s+py*c])
@@ -51,6 +53,8 @@ export function whyNotPlace(push,turn,id,spot,{cue,balls,bounds}){
  if(!isPlaceable(id))return 'not-placeable'
  const held=whyNotItem(push[turn],id,'before');if(held)return held
  const {x,y,rot=0}=spot||{}
+ const kind=id==='cannonball'?'heavy':id==='roller'?'roller':id==='pingpong'?'light':null
+ if(kind&&!hasRoomFor(balls,kind))return 'no-room'      // every id of that kind of ball is in use
  if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(rot))return 'bad-spot'
  if(!cue||!cue.on)return 'no-cue'
  if(Math.hypot(x-cue.x,y-cue.y)>RANGE[ITEMS[id].range])return 'too-far'
@@ -68,7 +72,7 @@ export function placeItem(push,turn,id,spot,ctx){
  if(whyNotPlace(push,turn,id,spot,ctx))return push
  const parts=shapeOf(id,spot.x,spot.y,spot.rot||0).map(o=>({...rounded(o),item:id,ttl:id==='landmine'?MINE_LIFE:id==='fan'?FAN_LIFE:id==='hole'?PIT_LIFE:OBSTACLE_LIFE}))
  // a ping-pong or cannon ball is a (light or heavy) dummy ball, not an obstacle: it is handed to the game as a drop to turn into a ball
- if(id==='pingpong'||id==='cannonball')return {...push,[turn]:useItem(push[turn],id,'before'),drops:[{x:Math.round(spot.x),y:Math.round(spot.y),kind:id==='cannonball'?'heavy':'light'}]}
+ if(id==='pingpong'||id==='cannonball'||id==='roller')return {...push,[turn]:useItem(push[turn],id,'before'),drops:[{x:Math.round(spot.x),y:Math.round(spot.y),kind:id==='cannonball'?'heavy':id==='roller'?'roller':'light',rot:Math.round((spot.rot||0)*100)/100}]}
  return {...push,[turn]:useItem(push[turn],id,'before'),obstacles:[...(push.obstacles||[]),...parts]}
 }
 

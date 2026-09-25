@@ -9,17 +9,19 @@ export const isDummy=b=>b.k==='dummy'
 export const DUMMY_BASE=100
 
 export const makeDummy=(n,x,y,vx=0,vy=0)=>({id:n,x,y,vx,vy,wx:0,wy:0,wz:0,on:true,k:'dummy',n})
-// Ids 100-169 are ordinary dummies, and the smallest free one is used so ids never creep up over a long game. 170-179 are
+// Ids 100-149 are ordinary dummies, 150-159 rollers (they can only roll along the axis they were placed on), and the smallest free one is used so ids never creep up over a long game. 170-179 are
 // ping-pong balls (light), 180-189 cannon balls (heavy) and 190-199 rutabagas (they make collisions unstable). The wire format
 // and the rules treat them all as dummies; only the physics tells them apart, by mass.
-export const LIGHT_BASE=170,HEAVY_BASE=180,RUTABAGA_BASE=190
-export const LIGHT_MASS=.4,HEAVY_MASS=4
-export const massOf=b=>b.m??(b.k!=='dummy'?1:b.n>=RUTABAGA_BASE?1:b.n>=HEAVY_BASE?HEAVY_MASS:b.n>=LIGHT_BASE?LIGHT_MASS:1)
+export const ROLLER_BASE=150,LIGHT_BASE=170,HEAVY_BASE=180,RUTABAGA_BASE=190
+export const LIGHT_MASS=.4,HEAVY_MASS=4,ROLLER_MASS=1.5
+export const isRoller=b=>b.k==='dummy'&&b.n>=ROLLER_BASE&&b.n<160
+export const massOf=b=>b.m??(b.k!=='dummy'?1:b.n>=RUTABAGA_BASE?1:b.n>=HEAVY_BASE?HEAVY_MASS:b.n>=LIGHT_BASE?LIGHT_MASS:b.n>=ROLLER_BASE&&b.n<160?ROLLER_MASS:1)
 export const isRutabaga=b=>b.k==='dummy'&&b.n>=RUTABAGA_BASE
+// null when the range is full: a duplicate id would make the whole state invalid, so callers make no ball instead
 export function nextDummyId(balls){
  const used=new Set(balls.filter(isDummy).map(b=>b.n))
- for(let n=DUMMY_BASE;n<LIGHT_BASE;n++)if(!used.has(n))return n
- return LIGHT_BASE-1
+ for(let n=DUMMY_BASE;n<ROLLER_BASE;n++)if(!used.has(n))return n
+ return null
 }
 // `count` ids that are free right now, in [lo,hi): a batch must never hand out an id already on the table (a duplicate id makes the
 // whole state invalid on the wire), so each ball takes the next free one rather than counting up from the first.
@@ -31,16 +33,21 @@ function freeIds(balls,lo,hi,count){
 function nextIn(balls,lo,hi){
  const used=new Set(balls.filter(isDummy).map(b=>b.n))
  for(let n=lo;n<hi;n++)if(!used.has(n))return n
- return hi-1
+ return null
 }
-export const makeLight=(balls,x,y)=>makeDummy(nextIn(balls,LIGHT_BASE,HEAVY_BASE),x,y)
-export const makeHeavy=(balls,x,y)=>makeDummy(nextIn(balls,HEAVY_BASE,RUTABAGA_BASE),x,y)
+// each returns null when its id range is full
+export const makeRoller=(balls,x,y)=>maybe(nextIn(balls,ROLLER_BASE,160),x,y)
+export const makeLight=(balls,x,y)=>maybe(nextIn(balls,LIGHT_BASE,HEAVY_BASE),x,y)
+export const makeHeavy=(balls,x,y)=>maybe(nextIn(balls,HEAVY_BASE,RUTABAGA_BASE),x,y)
+// is there a free id for this kind of ball? (a placement is refused up front rather than after the item is spent)
+export const hasRoomFor=(balls,kind)=>(kind==='roller'?makeRoller:kind==='heavy'?makeHeavy:kind==='rutabaga'?makeRutabaga:makeLight)(balls,0,0)!==null
 export function nextRutabagaId(balls){
  const used=new Set(balls.filter(isRutabaga).map(b=>b.n))
  for(let n=RUTABAGA_BASE;n<=199;n++)if(!used.has(n))return n
- return 199
+ return null
 }
-export const makeRutabaga=(balls,x,y)=>makeDummy(nextRutabagaId(balls),x,y)
+const maybe=(n,x,y)=>n==null?null:makeDummy(n,x,y)
+export const makeRutabaga=(balls,x,y)=>maybe(nextRutabagaId(balls),x,y)
 
 // The table without its dummies: what the standard pool rules are asked about.
 export const realBalls=balls=>balls.filter(b=>!isDummy(b))
@@ -51,7 +58,7 @@ export const dummyPoints=potted=>potted.filter(isDummy).length*DUMMY_POINTS
 
 // Add `count` dummies at free spots (not on another ball), using `rand` for positions. Returns the new balls.
 export function scatterDummies(balls,count,bounds,rand=Math.random){
- const {minx,maxx,miny,maxy}=bounds,out=[],ids=freeIds(balls,DUMMY_BASE,LIGHT_BASE,count)
+ const {minx,maxx,miny,maxy}=bounds,out=[],ids=freeIds(balls,DUMMY_BASE,ROLLER_BASE,count)
  for(let tries=0;out.length<Math.min(count,ids.length)&&tries<count*40;tries++){
   const x=minx+rand()*(maxx-minx),y=miny+rand()*(maxy-miny)
   if([...balls,...out].some(b=>b.on&&Math.hypot(b.x-x,b.y-y)<R*2.1))continue
@@ -62,7 +69,7 @@ export function scatterDummies(balls,count,bounds,rand=Math.random){
 
 // `count` dummies in a ring around (cx,cy), on free spots: a volcano's spew or a cluster breaking. Returns the new balls.
 export function scatterAround(balls,count,cx,cy,rand=Math.random,kind='dummy'){
- const out=[],ids=kind==='light'?freeIds(balls,LIGHT_BASE,HEAVY_BASE,count):freeIds(balls,DUMMY_BASE,LIGHT_BASE,count)
+ const out=[],ids=kind==='light'?freeIds(balls,LIGHT_BASE,HEAVY_BASE,count):freeIds(balls,DUMMY_BASE,ROLLER_BASE,count)
  for(let tries=0;out.length<Math.min(count,ids.length)&&tries<count*60;tries++){
   const a=rand()*Math.PI*2,d=R*2.4+rand()*(24+tries*.6),x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d
   if(x<40||x>660||y<40||y>340)continue

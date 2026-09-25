@@ -4,7 +4,7 @@ import {strike} from '../src/physics.js'
 import {rack} from '../src/rules.js'
 import {freshPush} from '../src/push/state.js'
 import {makeDummy,makeRutabaga,massOf,HEAVY_MASS,LIGHT_MASS} from '../src/push/dummy.js'
-import {rollItem} from '../src/push/items.js'
+import {DROPPABLE,ITEM_IDS} from '../src/push/items.js'
 import {snapshotOf,applySnapshot} from '../src/game-state.js'
 import {isGameMessage} from '../src/protocol.js'
 import {powerCost,CANNON_MASS} from '../src/push/powers.js'
@@ -638,8 +638,8 @@ test('the cannon house rule gives everyone a cannon at the start of each rack',(
  const {g:h}=game();h.resetRack();assert.deepEqual(h.push.a.items,[])
 })
 
-test('an unbuilt item is never dropped',()=>{
- for(let i=0;i<3000;i++)assert.notEqual(rollItem(Math.random),'roller')
+test('every item in the catalogue can be dropped now',()=>{
+ assert.equal(DROPPABLE.length,ITEM_IDS.length);assert.ok(DROPPABLE.includes('roller'))
 })
 
 test('one shot per turn: the turn passes after a pot, and the level-up waits for the owner next turn',()=>{
@@ -671,4 +671,30 @@ test('a black hole that swallows a dummy ball gives it back when it closes, and 
  g.push={...g.push,obstacles:g.push.obstacles.map(o=>({...o,ttl:1}))}
  g.pushAfterShot('a',{levelUps:0,nextTurn:'b',foul:false})
  assert.equal(dummy.on,true,'given back');assert.ok(g.balls.includes(dummy))
+})
+
+// ---- roller in a game ----
+test('a roller can only roll along the way it was placed: a glancing hit sends it along its axis alone',()=>{
+ const {g}=has(['roller']);g.canControl=()=>true;clear(g);const cue=g.balls[0];cue.on=true;cue.x=150;cue.y=190;put(g,14,600,330);put(g,15,620,300)
+ g.startPlacing('roller');g.placing.rot=Math.PI/2;g.movePlacing({x:230,y:190});g.confirmPlace()   // its axis points down the table
+ const roller=g.balls.find(b=>b.n>=150&&b.n<160);assert.ok(roller,'placed');assert.deepEqual(g.push.rollers,[{n:roller.n,rot:1.57}]);assert.deepEqual(g.push.a.items,[])
+ strike(cue,400,0);g.startShot();roll(g,5)
+ assert.ok(Math.abs(roller.x-230)<1.5,'it never left its column although it was struck from the side');assert.ok(cue.x>230-40||!cue.on)
+})
+
+test('a roller struck along its axis rolls freely, and a sunk roller is forgotten',()=>{
+ const {g}=has(['roller']);g.canControl=()=>true;clear(g);const cue=g.balls[0];cue.on=true;cue.x=150;cue.y=190;put(g,14,600,330);put(g,15,620,300)
+ g.startPlacing('roller');g.placing.rot=0;g.movePlacing({x:230,y:190});g.confirmPlace()
+ const roller=g.balls.find(b=>b.n>=150&&b.n<160)
+ strike(cue,400,0);g.startShot();roll(g,5);assert.ok(roller.x>300||!roller.on,'it rolled away along its axis')
+ roller.on=false;g.pushAfterShot('a',{levelUps:0,nextTurn:'b',foul:true});assert.deepEqual(g.push.rollers,[],'sunk: the axis record goes with it')
+ assert.equal(g.balls.some(b=>b.n===roller.n),false)
+})
+
+test('a shot that never settles is stopped after thirty seconds instead of hanging the game',()=>{
+ const {g}=game();clear(g);const cue=g.balls[0];cue.on=true;cue.x=150;cue.y=190;put(g,14,600,330);put(g,15,620,300);put(g,1,300,190)
+ // a force that keeps a ball moving for ever, standing in for whatever might
+ const keep=g.sub.bind(g);g.sub=dt=>{keep(dt);g.balls[1].vx=60}
+ strike(cue,300,0);g.startShot();roll(g,40)
+ assert.equal(g.phase,'aim','the table was stopped and the shot resolved');assert.ok(g.balls.every(b=>Math.abs(b.vx)<1&&Math.abs(b.vy)<1))
 })

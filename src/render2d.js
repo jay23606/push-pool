@@ -79,6 +79,8 @@ export function createRenderer2D(canvas,options={}){
    }
    g.lineCap='butt'
    for(const b of game.balls)if(b.on&&!(b.z>0))drawBall(b)
+   // a roller shows the way it rolls
+   for(const r of game.push?.rollers||[]){const b=game.balls.find(q=>q.n===r.n&&q.on);if(b){g.strokeStyle='#fff3d6';g.lineWidth=2;g.beginPath();g.moveTo(b.x-Math.cos(r.rot)*R,b.y-Math.sin(r.rot)*R);g.lineTo(b.x+Math.cos(r.rot)*R,b.y+Math.sin(r.rot)*R);g.stroke()}}
    // A ball in the air is drawn on top of the rest and larger, growing as it climbs and shrinking as it comes down:
    // seen from above, that is how height looks. Its shadow stays on the cloth.
    for(const b of game.balls)if(b.on&&b.z>0){const k=1+Math.min(b.z,30)/40;g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(b.x+b.z*.15,b.y+b.z*.2,R,R*.85,0,0,7);g.fill();g.save();g.translate(b.x,b.y);g.scale(k,k);g.translate(-b.x,-b.y);drawBall(b);g.restore()}

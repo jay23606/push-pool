@@ -37,7 +37,9 @@ function settle(g,seconds=40){
  let now=g.clock||0;g.simAt=now
  for(let i=0;i<seconds*120&&g.phase==='roll';i++){now+=1000/120;g.advance(now)}
  g.clock=now
- // a shot that never comes to rest would hang a real game, so it is a failure here
+ // a shot that never comes to rest would hang a real game: the game's own failsafe stops it after thirty seconds, but needing
+ // that failsafe at all means something is keeping balls moving, so it is a failure here too
+ assert.ok(!g.stalls,'the table had to be stopped by the thirty-second failsafe: something keeps balls moving')
  assert.equal(g.phase,'aim','the table did not come to rest within '+seconds+' seconds; still moving: '+JSON.stringify(g.balls.filter(b=>b.on&&(Math.abs(b.vx)>1||Math.abs(b.vy)>1)).map(b=>[b.n,Math.round(b.x),Math.round(b.y),Math.round(b.vx),Math.round(b.vy)])).slice(0,6)+' obstacles '+g.push.obstacles.map(o=>o.t).join(','))
 }
 function healthy(g,note){

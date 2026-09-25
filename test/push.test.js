@@ -293,7 +293,7 @@ test('placeable items turn into the obstacle records the physics already knows',
  const tilted=shapeOf('wall',200,190,Math.PI/2);assert.ok(Math.abs(tilted[0].x1-tilted[0].x2)<1e-9,'rotated a quarter turn it stands upright')
  assert.equal(shapeOf('cube',200,190,.4).length,4,'a cube is four walls')
  assert.equal(shapeOf('pillar',200,190)[0].t,'bumper')
- assert.deepEqual(PLACEABLE,['wall','cube','pillar','landmine','fan','hole','pingpong','cannonball']);assert.deepEqual(shapeOf('bomb',1,1),[])
+ assert.deepEqual(PLACEABLE,['wall','cube','pillar','landmine','fan','hole','pingpong','cannonball','roller']);assert.deepEqual(shapeOf('bomb',1,1),[])
 })
 
 test('a placed wall really stops a ball: the physics treats it like any obstacle',()=>{
@@ -506,7 +506,7 @@ test('fan, hole and ping-pong can be placed; a ping-pong ball is a drop, not an 
  for(const id of ['fan','hole','pingpong'])assert.equal(whyNotPlace(h,'a',id,{x:250,y:150,rot:0},c),null,id)
  const fan=placeItem(h,'a','fan',{x:250,y:150,rot:1},c);assert.equal(fan.obstacles[0].t,'fan');assert.equal(fan.obstacles[0].ttl,1);assert.equal(fan.obstacles[0].rot,1)
  const hole=placeItem(h,'a','hole',{x:250,y:150},c);assert.equal(hole.obstacles[0].t,'pit')
- const pp=placeItem(h,'a','pingpong',{x:250,y:150},c);assert.deepEqual(pp.drops,[{x:250,y:150,kind:'light'}]);assert.equal((pp.obstacles||[]).length,0);assert.deepEqual(pp.a.items,['fan','hole'])
+ const pp=placeItem(h,'a','pingpong',{x:250,y:150},c);assert.deepEqual(pp.drops,[{x:250,y:150,kind:'light',rot:0}]);assert.equal((pp.obstacles||[]).length,0);assert.deepEqual(pp.a.items,['fan','hole'])
  assert.equal(whyNotPlace(h,'a','fan',{x:200+181,y:190,rot:0},c),'too-far')
 })
 
@@ -657,7 +657,7 @@ import {DROPPABLE} from '../src/push/items.js'
 test('the help lists every power, every droppable item and every live spawn, with the real numbers',()=>{
  const sections=helpSections(),by=t=>sections.find(s=>s.title===t)
  assert.equal(by('Powers').rows.length,ALL_POWERS.length);assert.equal(by('Items').rows.length,DROPPABLE.length)
- assert.ok(!by('Items').rows.some(r=>r.name==='Roller'),'an unbuilt item is not advertised')
+ assert.ok(by('Items').rows.some(r=>r.name==='Roller'),'every item in the catalogue is built and listed')
  assert.ok(by('What shows up on the table').rows.every(r=>r.text.length>10),'every spawn is explained')
  assert.match(by('The idea').lines[0],new RegExp('first to '+PUSH_TARGET,'i'))
  assert.ok(by('Powers').rows.every(r=>/levels cost \d+ \/ \d+ \/ \d+/.test(r.detail)),'costs come from the catalogue')
@@ -667,10 +667,42 @@ test('the help lists every power, every droppable item and every live spawn, wit
 test('a batch of dummies never reuses an id that is already on the table, even around gaps',()=>{
  const taken=[makeDummy(101,1,1),makeDummy(103,2,2),makeLight([],3,3),{...makeLight([],4,4),n:175}]
  const rings=scatterAround(taken,6,300,190,seeded(2));const ids=[...taken,...rings].map(b=>b.n)
- assert.equal(new Set(ids).size,ids.length,'ordinary dummies: all ids distinct');assert.ok(rings.every(b=>b.n>=100&&b.n<170))
+ assert.equal(new Set(ids).size,ids.length,'ordinary dummies: all ids distinct');assert.ok(rings.every(b=>b.n>=100&&b.n<150))
  const lights=scatterAround(taken,5,300,190,seeded(3),'light');const ids2=[...taken,...lights].map(b=>b.n)
  assert.equal(new Set(ids2).size,ids2.length,'light dummies: all ids distinct');assert.ok(lights.every(b=>b.n>=170&&b.n<180))
  const rain=scatterDummies(taken,8,{minx:40,maxx:660,miny:40,maxy:340},seeded(4));const ids3=[...taken,...rain].map(b=>b.n)
  assert.equal(new Set(ids3).size,ids3.length,'a hurricane too')
  const full=Array.from({length:70},(_,i)=>makeDummy(100+i,1,1));assert.equal(scatterAround(full,4,300,190,seeded(1)).length,0,'no free id, none made')
+})
+
+// ---- roller ----
+import {makeRoller,isRoller,ROLLER_MASS,ROLLER_BASE} from '../src/push/dummy.js'
+import {UNBUILT_ITEMS} from '../src/push/items.js'
+
+test('a roller is a dummy with its own id range and mass, placed with an axis, and every item in the catalogue now works',()=>{
+ const r=makeRoller([],10,10);assert.ok(isRoller(r)&&r.k==='dummy'&&r.n>=ROLLER_BASE&&r.n<160);assert.equal(massOf(r),ROLLER_MASS);assert.ok(!isRoller(makeDummy(100,1,1)))
+ assert.equal(makeRoller([r],20,20).n,r.n+1);assert.deepEqual(UNBUILT_ITEMS,[])
+ const put=placeItem(holding('roller'),'a','roller',{x:250,y:150,rot:1.234},ctx())
+ assert.deepEqual(put.drops,[{x:250,y:150,kind:'roller',rot:1.23}]);assert.equal((put.obstacles||[]).length,0)
+ assert.ok(validPush({...withPush(),rollers:[{n:150,rot:.5}]}));assert.equal(validPush({...withPush(),rollers:[{n:20,rot:.5}]}),false);assert.equal(validPush({...withPush(),rollers:[{n:150,rot:'x'}]}),false)
+ assert.ok(isGameMessage(snap([r])),'a roller is an ordinary dummy on the wire')
+})
+
+test('a full id range makes no ball rather than a duplicate, and a placement is refused up front',()=>{
+ const lights=[];for(let i=0;i<10;i++)lights.push(makeLight(lights,i,0));assert.equal(makeLight(lights,0,0),null,'ten lights is all there is')
+ const rollers=[];for(let i=0;i<10;i++)rollers.push(makeRoller(rollers,i,0));assert.equal(makeRoller(rollers,0,0),null)
+ const rut=[];for(let i=0;i<10;i++)rut.push(makeRutabaga(rut,i,0));assert.equal(makeRutabaga(rut,0,0),null)
+ const full=Array.from({length:50},(_,i)=>makeDummy(100+i,1,1));assert.equal(nextDummyId(full),null);assert.equal(nextDummyId(full.slice(1)),100)
+ const c=ctx(lights),h=holding('pingpong','cannonball')
+ assert.equal(whyNotPlace(h,'a','pingpong',{x:250,y:150},c),'no-room','the light balls are all on the table');assert.equal(whyNotPlace(h,'a','cannonball',{x:250,y:150},c),null,'but heavy ones are not')
+})
+
+test('a black hole always wins in the end: a ball thrown around it settles, and speed near the centre no longer lets it escape',()=>{
+ const hole={t:'blackhole',x:200,y:200,r:HOLE_R,held:[],ttl:5},b=rolling(320,210,-200,150)
+ let swallowed=false
+ for(let i=0;i<120*40&&!swallowed;i++){
+  const sw=stepHazards([b],[hole],1/120);if(sw.length)swallowed=true
+  else{b.x+=b.vx/120;b.y+=b.vy/120;const sp=Math.hypot(b.vx,b.vy),k=Math.max(0,1-.6/120);b.vx*=k;b.vy*=k;void sp}
+ }
+ assert.ok(swallowed,'caught within forty seconds')
 })

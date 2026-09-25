@@ -9,7 +9,7 @@ import {ITEMS as ITEM_CATALOG} from './items.js'
 // and the spawns on the table. Points are not here -- they are the game's `score`, so there is one number to keep.
 // This travels in the state snapshot, so a receiver validates it like any other input.
 
-export const freshPush=()=>({a:strip(newPlayer()),b:strip(newPlayer()),offers:null,spawns:[],pickups:[],obstacles:[],turns:0})
+export const freshPush=()=>({a:strip(newPlayer()),b:strip(newPlayer()),offers:null,spawns:[],pickups:[],obstacles:[],rollers:[],turns:0})
 function strip(p){const {points:_points,...rest}=p;return rest}  
 
 const fin=n=>typeof n==='number'&&Number.isFinite(n)
@@ -39,5 +39,6 @@ export function validPush(p){
   &&(p.offers===null||(Array.isArray(p.offers)&&p.offers.length<=6&&p.offers.every(validOffer)))
   &&Array.isArray(p.spawns)&&p.spawns.length<=12&&p.spawns.every(validSpawn)
   &&(p.pickups===undefined||Array.isArray(p.pickups)&&p.pickups.length<=40&&p.pickups.every(validPickup))
+  &&(p.rollers===undefined||Array.isArray(p.rollers)&&p.rollers.length<=10&&p.rollers.every(r=>r&&Number.isInteger(r.n)&&r.n>=150&&r.n<160&&fin(r.rot)))
   &&(p.obstacles===undefined||Array.isArray(p.obstacles)&&p.obstacles.length<=60&&p.obstacles.every(validObstacle))
 }

@@ -11,7 +11,7 @@ import {SPAWN_TYPES} from './spawns.js'
 
 export const SLICKS=['ice','electric','sand','plasma']
 export const SLICK_RANGE=[34,58]
-export const HOLE_R=110,HOLE_PULL=1500,HOLE_CATCH=10,HOLE_MAX_HELD=6
+export const HOLE_R=110,HOLE_PULL=1500,HOLE_CATCH=14,HOLE_MAX_HELD=6,HOLE_DRAG=1.4,HOLE_CATCH_SPEED=900
 export const PORTAL_R=15
 export const HURRICANE=[5,9]              // how many dummies it rains
 export const MAX_DUMMIES_ON_TABLE=40       // hurricanes and the like stop once the table is this crowded
@@ -107,9 +107,9 @@ export function stepHazards(balls,obstacles,dt){
     if(o.variant==='plasma'&&Math.hypot(b.vx,b.vy)<8){b.vx=0;b.vy=0}   // a ball that slows in plasma gets stuck
    }else{
     if(d>=o.r||!(d>1))continue
-    if(d<HOLE_CATCH&&Math.hypot(b.vx,b.vy)<520&&b.k!=='cue'&&(o.held.length+swallowed.filter(s=>s.hole===o).length)<HOLE_MAX_HELD){swallowed.push({hole:o,ball:b});continue}
-    const a=HOLE_PULL*(1-d/o.r)*dt
-    b.vx+=dx/d*a;b.vy+=dy/d*a
+    if(d<HOLE_CATCH&&Math.hypot(b.vx,b.vy)<HOLE_CATCH_SPEED&&b.k!=='cue'&&(o.held.length+swallowed.filter(s=>s.hole===o).length)<HOLE_MAX_HELD){swallowed.push({hole:o,ball:b});continue}
+    const a=HOLE_PULL*(1-d/o.r)*dt,drag=Math.max(0,1-HOLE_DRAG*dt)      // the closer in, the more it drags: nothing orbits for ever
+    b.vx=b.vx*drag+dx/d*a;b.vy=b.vy*drag+dy/d*a
    }
   }
  }

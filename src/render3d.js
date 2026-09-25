@@ -255,6 +255,15 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
   }
  }
  // the item being placed: a translucent ghost of it, and a ring showing how far it may go
+ // a bar across each roller, along the way it rolls
+ const rollerBars=new THREE.Group();scene.add(rollerBars)
+ function drawRollers(game){
+  for(const m of [...rollerBars.children]){rollerBars.remove(m);m.geometry.dispose();m.material.dispose()}
+  for(const r of game.push?.rollers||[]){
+   const b=game.balls.find(q=>q.n===r.n&&q.on);if(!b)continue
+   const bar=new THREE.Mesh(new THREE.BoxGeometry(R*2.2,1.2,1.6),new THREE.MeshBasicMaterial({color:'#fff3d6'}));bar.position.set(tx(b.x),R*2.05,tz(b.y));bar.rotation.y=-r.rot;rollerBars.add(bar)
+  }
+ }
  const ghostGroup=new THREE.Group();scene.add(ghostGroup)
  function drawGhost(game){
   for(const m of [...ghostGroup.children]){ghostGroup.remove(m);m.geometry.dispose();m.material.dispose()}
@@ -450,7 +459,7 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
    const pk=game.pocketScale?game.pocketScale():1
    for(const m of pocketMeshes)m.scale.set(pk,1,pk)
    const obs=getObstacles();if(obs!==obsShown){obsShown=obs;buildObstacles(obs)}
-   drawGhost(game)
+   drawGhost(game);drawRollers(game)
    // a guest gets a fresh list with every state message, so compare what is in it, not which array it is
    const picks=game.push?.pickups||[],pickSig=picks.map(k=>k.kind+k.x+','+k.y+(k.v||k.id)).join('|')
    if(pickSig!==pickShown){pickShown=pickSig;buildPickups(picks)}
