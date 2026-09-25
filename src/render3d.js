@@ -451,8 +451,9 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
    for(const m of pocketMeshes)m.scale.set(pk,1,pk)
    const obs=getObstacles();if(obs!==obsShown){obsShown=obs;buildObstacles(obs)}
    drawGhost(game)
-   const picks=game.push?.pickups||[]
-   if(picks!==pickShown){pickShown=picks;buildPickups(picks)}
+   // a guest gets a fresh list with every state message, so compare what is in it, not which array it is
+   const picks=game.push?.pickups||[],pickSig=picks.map(k=>k.kind+k.x+','+k.y+(k.v||k.id)).join('|')
+   if(pickSig!==pickShown){pickShown=pickSig;buildPickups(picks)}
    for(const m of pickGroup.children){m.rotation.y+=dt*1.8;m.position.y=R*.9+Math.sin(performance.now()/300+m.position.x)*1.2}
    const fx=game.fx
    bonusDisc.visible=bonusRing.visible=Boolean(fx&&fx.type==='bonus')
