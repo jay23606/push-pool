@@ -29,8 +29,8 @@ export const ONE_POCKET={a:5,b:2}
 export const BONUS_POCKET=6,BONUS_POINTS=3
 
 // P.U.S.H. Pool: score is points, and points are also what powers cost. A real ball is worth ten, a dummy one, a
-// foul costs five; the first to a hundred wins. Dummy balls are invisible to the rules (see push/dummy.js).
-export const PUSH_TARGET=100,PUSH_POT=10,PUSH_FOUL=5
+// foul costs five; the first to two hundred and fifty wins (a clean run of the table is 150, so games run long). Dummy balls are invisible to the rules (see push/dummy.js).
+export const PUSH_TARGET=250,PUSH_POT=10,PUSH_FOUL=5
 
 export const other=t=>t==='a'?'b':'a'
 export const kind=n=>n===8?'eight':n<8?'solid':'stripe'

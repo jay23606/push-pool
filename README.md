@@ -10,7 +10,7 @@ The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 A playable slice in the lobby as **P.U.S.H. Pool** (practice vs the AI, hot-seat, or online). Built so far:
 
-- **Points** are the score (10 per real ball, 1 per dummy, foul -5, first to 100) and also what powers cost.
+- **Points** are the score (10 per real ball, 1 per dummy, foul -5, first to 250) and also what powers cost.
 - **Level-ups:** sinking a real ball offers three powers; a pick you have not taken waits for your next turn.
 - **Powers:** Jump, and Pop / Stink / Cute (armed from the panel at a level you choose, paid for on the shot).
 - **Pickups:** gems (points) and items drop between turns and are collected by the cue ball.

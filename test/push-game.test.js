@@ -32,8 +32,8 @@ function potShot(g,ball=1){
  strike(cue,0,-1300);g.startShot();roll(g)
 }
 
-test('a new push game starts with empty push state and a hundred to play for',()=>{
- const {g}=game();assert.deepEqual(g.push,freshPush());assert.equal(g.scoreTarget??100,100)
+test('a new push game starts with empty push state and a long way to go',()=>{
+ const {g}=game();assert.deepEqual(g.push,freshPush());assert.equal(g.scoreTarget??250,250)
 })
 
 test('potting a real ball scores ten, keeps the turn, and offers three powers',()=>{

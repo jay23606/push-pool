@@ -140,7 +140,7 @@ import {freshPush,validPush} from '../src/push/state.js'
 const shot=(o)=>({mode:'push',turn:'a',score:{a:0,b:0},potted:[],firstHit:{n:3},scratch:false,balls:rack('8ball'),...o})
 const real=n=>({n,k:n<8?'solid':'stripe',on:false}),dum=n=>({...makeDummy(n,0,0),on:false})
 
-test('push is a scored game with a hundred-point target',()=>{
+test('push is a scored game with a long points target',()=>{
  assert.ok(MODES.push);assert.ok(isScoreMode('push'));assert.equal(targetFor('push'),PUSH_TARGET)
 })
 
@@ -164,11 +164,11 @@ test('a foul costs points, never below zero, and forfeits everything the shot po
  assert.equal(judgeScoreGame(shot({firstHit:null})).reason,'no-contact')
 })
 
-test('dummy balls do not count towards the rack running out, and a hundred wins',()=>{
+test('dummy balls do not count towards the rack running out, and the target wins',()=>{
  const onlyDummies=[{n:0,k:'cue',on:true},makeDummy(100,1,1),makeDummy(101,2,2)]
  assert.equal(judgeScoreGame(shot({balls:onlyDummies})).rerack,true,'no real balls left: re-rack')
- assert.equal(judgeScoreGame(shot({score:{a:95,b:0},potted:[real(3)]})).winner,'a')
- assert.equal(judgeScoreGame(shot({score:{a:80,b:0},potted:[real(3)]})).winner,null)
+ assert.equal(judgeScoreGame(shot({score:{a:PUSH_TARGET-5,b:0},potted:[real(3)]})).winner,'a')
+ assert.equal(judgeScoreGame(shot({score:{a:PUSH_TARGET-30,b:0},potted:[real(3)]})).winner,null)
 })
 
 const tuple=(n,k)=>[10,10,true,k,n,0,0,0,0,0]
