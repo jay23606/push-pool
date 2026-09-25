@@ -7,6 +7,7 @@ import {makeDummy,makeRutabaga} from '../src/push/dummy.js'
 import {snapshotOf,applySnapshot} from '../src/game-state.js'
 import {isGameMessage} from '../src/protocol.js'
 import {powerCost} from '../src/push/powers.js'
+import {payArmed} from '../src/push/logic.js'
 import {R} from '../src/table.js'
 
 // a hot-seat push game with no DOM: same construction as the chaos tests
@@ -514,4 +515,38 @@ test('feats reward a double and count the balls the cue ball touched',()=>{
 test('cue ball contacts are counted during a shot',()=>{
  const {g}=game();clear(g);const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190;put(g,1,250,190);put(g,14,600,330);put(g,15,620,300)
  strike(cue,400,0);g.startShot();roll(g,0.4);assert.ok(g.contacts===null||g.contacts.size>=1||g.phase==='aim')
+})
+
+// ---- trail ----
+test('a trail costs more for plasma and stone, and payArmed charges the variant chosen',()=>{
+ const push={...freshPush(),a:{powers:{trail:2},items:[],picks:0}}
+ const ice=payArmed(push,{a:200,b:0},'a',{trail:2},{trail:'ice'}),stone=payArmed(push,{a:200,b:0},'a',{trail:2},{trail:'stone'})
+ assert.equal(ice.score.a,200-powerCost('trail',2,'ice'));assert.equal(stone.score.a,200-powerCost('trail',2,'stone'))
+ assert.ok(stone.applied.trail.variant==='stone'&&stone.applied.trail.length===160)
+ assert.ok(powerCost('trail',2,'stone')>powerCost('trail',2,'plasma')&&powerCost('trail',2,'plasma')>powerCost('trail',2,'ice'))
+ assert.deepEqual(payArmed(push,{a:5,b:0},'a',{trail:2},{trail:'ice'}).applied,{},'cannot afford')
+})
+
+test('the cue ball leaves a trail of the chosen kind, up to its length, that lasts two turns',()=>{
+ for(const variant of ['ice','stone']){
+  const {g}=has([],{trail:1},99);clear(g);g.canControl=()=>true
+  const cue=g.balls[0];cue.on=true;cue.x=100;cue.y=120;put(g,14,600,330);put(g,15,620,300);put(g,1,500,120)
+  g.trailVariant=variant;g.cycleArm('trail');g.applyArmed(g.armed,{trail:g.trailVariant});g.armed={}
+  strike(cue,0,0);cue.vx=350;g.startShot();roll(g,6)
+  const laid=g.push.obstacles.filter(o=>variant==='stone'?o.t==='bumper':o.t==='slick')
+  assert.ok(laid.length>=3&&laid.length<=Math.ceil(80/14)+1,variant+': a short trail at level one, got '+laid.length)
+  assert.ok(laid.every(o=>o.ttl<=2&&o.ttl>=1));if(variant==='ice')assert.ok(laid.every(o=>o.variant==='ice'));assert.ok(laid.every(o=>o.y===120||Math.abs(o.y-120)<8),'along the cue ball path')
+  assert.ok(laid.every(o=>Math.hypot(o.x-cue.x,o.y-cue.y)>17),'none under the cue ball where it stopped')
+  assert.ok(isGameMessage(snapshotOf({...g,round:1})),'valid on the wire')
+ }
+})
+
+test('an unarmed shot leaves no trail, and the trail choice travels with a guest shot',()=>{
+ const {g}=has([],{});clear(g);const cue=g.balls[0];cue.on=true;cue.x=100;cue.y=120;put(g,14,600,330);put(g,15,620,300);put(g,1,500,120)
+ cue.vx=350;g.startShot();roll(g,5);assert.equal(g.push.obstacles.length,0)
+ assert.ok(isGameMessage({t:'shot',vx:1,vy:1,powers:{trail:2},tv:'plasma'}));assert.equal(isGameMessage({t:'shot',vx:1,vy:1,powers:{trail:2},tv:'lava'}),false)
+ const {g:host}=game({turn:'b',score:{a:0,b:99},push:{...freshPush(),b:{powers:{trail:1},items:[],picks:0}}});clear(host)
+ const c=host.balls[0];c.on=true;c.x=100;c.y=120;put(host,14,600,330);put(host,15,620,300);put(host,1,500,120)
+ host.receive({t:'shot',vx:350,vy:0,spin:[0,0],powers:{trail:1},tv:'sand'});roll(host,6)
+ assert.ok(host.push.obstacles.some(o=>o.t==='slick'&&o.variant==='sand'),'the host laid the sand trail');assert.equal(host.score.b<99,true,'and charged for it')
 })

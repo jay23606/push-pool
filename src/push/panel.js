@@ -3,7 +3,7 @@ import {ITEMS} from './items.js'
 import {isPlaceable} from './placing.js'
 import {isTossable} from './toss.js'
 import {ITEMS as ITEM_DEFS} from './items.js'
-import {isArmable} from './powers.js'
+import {isArmable,TRAIL_VARIANTS} from './powers.js'
 
 // The P.U.S.H. Pool side panel: your points, powers and items, and the level-up choice when one is owed. It is plain DOM
 // built with textContent (nothing from the network is ever parsed as HTML), and only rebuilt when what it shows changes,
@@ -17,7 +17,7 @@ export function pushPanelState(game){
  const mine=push[me]
  return {me,points:game.score?.[me]||0,powers:mine.powers,items:mine.items,picks:mine.picks,
   offers:game.turn===me&&!game.spectator?push.offers:null,
-  armed:game.armed||{},armedItem:game.armedItem||null,powder:Boolean(mine.powder),canMull:game.phase==='aim'&&Boolean(game.undo)&&!game.spectator&&!game.tossing,canUse:game.turn===me&&!game.spectator&&game.phase==='aim'&&!game.ballInHand,placing:game.placing?.item||null}
+  armed:game.armed||{},trailVariant:game.trailVariant||'ice',armedItem:game.armedItem||null,powder:Boolean(mine.powder),canMull:game.phase==='aim'&&Boolean(game.undo)&&!game.spectator&&!game.tossing,canUse:game.turn===me&&!game.spectator&&game.phase==='aim'&&!game.ballInHand,placing:game.placing?.item||null}
 }
 
 export function renderPushPanel(game){
@@ -50,7 +50,7 @@ export function renderPushPanel(game){
   const row=el('div','push-row');row.append(el('span','push-label','Powers'))
   for(const [id,l] of owned){
    if(isArmable(id)&&st.canUse){
-    const a=st.armed[id]||0,b=el('button','push-chip use'+(a?' on':''),a?`${POWERS[id].name} ${'I'.repeat(a)} armed · ${powerCost(id,a)}`:`${POWERS[id].name} ${'I'.repeat(l)} · ${powerCost(id,1)}`)
+    const a=st.armed[id]||0,tv=id==='trail'?st.trailVariant:undefined,b=el('button','push-chip use'+(a?' on':''),a?`${POWERS[id].name} ${'I'.repeat(a)}${tv?' '+tv:''} armed · ${powerCost(id,a,tv)}`:`${POWERS[id].name} ${'I'.repeat(l)} · ${powerCost(id,1)}`)
     b.type='button';b.title=POWERS[id].blurb;b.onclick=()=>game.cycleArm(id);row.append(b)
    }else row.append(el('span','push-chip',`${POWERS[id].name} ${'I'.repeat(l)} · ${powerCost(id,1)}`))
   }
@@ -69,6 +69,11 @@ export function renderPushPanel(game){
    }else row.append(el('span','push-chip item',ITEMS[id].name))
   }
   p.append(row)
+ }
+ if((st.powers.trail||0)&&st.canUse){
+  const vr=el('div','push-row');vr.append(el('span','push-label','Trail'))
+  for(const v of TRAIL_VARIANTS){const b=el('button','push-chip use'+(st.trailVariant===v?' on':''),v);b.type='button';b.onclick=()=>{game.trailVariant=v};vr.append(b)}
+  p.append(vr)
  }
  if(st.powder)p.append(el('div','push-h','Pop powder is on for your next shot'))
  if((st.powers.tilt||0)&&st.canUse){

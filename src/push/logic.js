@@ -95,13 +95,14 @@ export function payPower(push,score,turn,id,level,phase,variant){
 // The powers armed for this shot are paid for as the shot is taken, each at the level chosen, one after the other:
 // one you can no longer afford (or do not own, or that has no working effect) is simply skipped.
 // `armed` is {power id: level}. Returns the new score and {id: {level,...level numbers}} for what went through.
-export function payArmed(push,score,turn,armed){
+export function payArmed(push,score,turn,armed,variants={}){
  let pts=score,applied={}
  for(const [id,level] of Object.entries(armed||{})){
   if(!isArmable(id)||!Number.isInteger(level))continue
-  const r=payPower(push,{...score,[turn]:pts[turn]},turn,id,level,'before')
+  const variant=variants?.[id]
+  const r=payPower(push,{...score,[turn]:pts[turn]},turn,id,level,'before',variant)
   if(!r.ok)continue
-  pts=r.score;applied={...applied,[id]:{level,...powerLevel(id,level)}}
+  pts=r.score;applied={...applied,[id]:{level,...powerLevel(id,level),...(variant?{variant}:{})}}
  }
  return {score:pts,applied}
 }

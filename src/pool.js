@@ -6,7 +6,7 @@ import {airborne} from './physics.js'
 import {drawTwist,blast,wellPull,bonusPocket,twistName} from './chaos.js'
 import {collectPickups,afterShot,choosePower,payPower,payArmed,shotFeats} from './push/logic.js'
 import {renderPushPanel} from './push/panel.js'
-import {powerCost,powerLevel,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS,TILT_IMPULSE,NUDGE_POWER,CANNON_MULT,POWDER_POPS,POWDER_RADIUS_R,POWDER_FORCE} from './push/powers.js'
+import {powerCost,powerLevel,TRAIL_STEP,TRAIL_R,TRAIL_LIFE,TRAIL_MAX,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS,TILT_IMPULSE,NUDGE_POWER,CANNON_MULT,POWDER_POPS,POWDER_RADIUS_R,POWDER_FORCE} from './push/powers.js'
 import {placeItem,whyNotPlace,isPlaceable,MINE_BLAST_R,MINE_BLAST_POWER} from './push/placing.js'
 import {isTossable,landing,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS} from './push/toss.js'
 import {DUMMY_POINTS,scatterDummies,scatterAround,makeDummy,nextDummyId,makeRutabaga,isRutabaga} from './push/dummy.js'
@@ -185,11 +185,11 @@ export class PoolGame{
   this.jumpOn=false;this.usedJump=jump
   if(jump&&this.host&&this.mode==='push')this.payJump()
   const armed=this.mode==='push'&&Object.keys(this.armed||{}).length?{...this.armed}:null;this.armed={}
-  if(armed&&this.host)this.applyArmed(armed)
+  if(armed&&this.host)this.applyArmed(armed,{trail:this.trailVariant})
   this.armedItem=null
   if(cannonOn&&this.host)this.payCannon()
   if(this.shotFx?.nudge&&this.host){this.doNudge(vx,vy,spin);this.pendingPlace=null;return}
-  this.startShot();if(this.host)strike(this.balls[0],vx,vy,spin[0],spin[1],jump);else this.send({t:'shot',vx,vy,spin,place:this.pendingPlace,called,...(jump?{jump:true}:{}),...(armed?{powers:armed}:{}),...(cannonOn?{cannon:true}:{})});this.pendingPlace=null}
+  this.startShot();if(this.host)strike(this.balls[0],vx,vy,spin[0],spin[1],jump);else this.send({t:'shot',vx,vy,spin,place:this.pendingPlace,called,...(jump?{jump:true}:{}),...(armed?{powers:armed}:{}),...(armed?.trail?{tv:this.trailVariant||'ice'}:{}),...(cannonOn?{cannon:true}:{})});this.pendingPlace=null}
  startShot(){if(this.chal&&this.chal.startedAt==null)this.chal=startClock(this.chal,performance.now());this.shots??={a:0,b:0};this.shots[this.turn]=(this.shots[this.turn]||0)+1;this.placed=false;this.potted=[];this.firstObjectPotted=null;this.scratch=false;this.firstHit=null;this.before=this.group()?this.remaining(this.group()):null;this.lowest=lowestBall(this.balls);this.railHit=false;this.pocketOf={};this.railBalls=new Set();this.cueRailFirst=false;this.phase='roll';this.noteRecording(true)
   if(this.mode==='push')this.shotStarted()}
  receive(m){
@@ -247,7 +247,7 @@ export class PoolGame{
   this.calledPocket=this.canCallEight()?(m.called??null):null
   const jump=Boolean(m.jump)&&this.jumpAllowed()
   if(jump&&this.mode==='push')this.payJump()
-  if(this.mode==='push'&&m.powers)this.applyArmed(m.powers)
+  if(this.mode==='push'&&m.powers)this.applyArmed(m.powers,{trail:m.tv||'ice'})
   if(this.mode==='push'&&m.cannon&&this.push?.[this.turn]?.items.includes('cannon'))this.payCannon()
   if(this.shotFx?.nudge){this.doNudge(m.vx,m.vy,m.spin||[0,0]);return}
   this.startShot();strike(this.balls[0],m.vx,m.vy,m.spin?.[0]||0,m.spin?.[1]||0,jump)
@@ -357,7 +357,9 @@ export class PoolGame{
   if(!this.push)return
   const r=afterShot(this.push,{shooter,nextTurn:v.nextTurn,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY},rand:this.dealRand||Math.random})
   this.balls=this.balls.filter(b=>b.k!=='dummy'||b.on)     // dummies that dropped in a pocket are gone for good
-  this.push=r.push;this.placing=null;this.syncObstacles()
+  this.push=r.push;this.placing=null
+  this.layTrail()
+  this.syncObstacles()
   const feats=shotFeats({real:v.levelUps||0,contacts:this.contacts?.size||0,foul:Boolean(v.foul)})
   for(const f of feats){
    if(f.points)this.score={...this.score,[shooter]:(this.score[shooter]||0)+f.points}
@@ -496,7 +498,7 @@ export class PoolGame{
   this.score={...this.score,[shooter]:(this.score[shooter]||0)+real.length*PUSH_POT+dummies.length*DUMMY_POINTS}
   // a cue ball your own blast pocketed comes back where it was: no foul, the toss was not a shot
   if(!cue.on){cue.on=true;cue.x=this.tossCue.x;cue.y=this.tossCue.y}
-  this.tossing=false;this.shotFx=null;this.balls.forEach(clearMotion);this.phase='aim'
+  this.tossing=false;this.shotFx=null;this.trailPts=null;this.balls.forEach(clearMotion);this.phase='aim'
   const target=this.scoreTarget||targetFor(this.mode)
   if(this.score[shooter]>=target){this.onShotResult?.({shooter,potted:this.potted.map(b=>b.n),foul:false,winner:shooter});this.finish(shooter);this.sync();return}
   if(this.balls.filter(b=>b.on&&b.k!=='cue'&&b.k!=='dummy').length<=1)this.reRack()
@@ -522,14 +524,19 @@ export class PoolGame{
   if(next)armed[id]=next;else delete armed[id]
   this.armed=armed
  }
- applyArmed(armed){
-  const r=payArmed(this.push,this.score,this.turn,armed)
-  this.score=r.score;this.shotFx=Object.keys(r.applied).length?r.applied:null;this.pops=0
+ applyArmed(armed,variants){
+  const r=payArmed(this.push,this.score,this.turn,armed,variants)
+  this.score=r.score;this.shotFx=Object.keys(r.applied).length?r.applied:null;this.pops=0;this.trailPts=[];this.trailLen=0
   const names=Object.keys(r.applied);if(names.length)this.flash(names.map(id=>id[0].toUpperCase()+id.slice(1)).join(' + '))
  }
  // What an armed power does while the balls roll: stink and cute push or pull the balls near the cue ball, pop blasts on contact.
  shotEffects(dt){
   const fx=this.shotFx,cue=this.balls[0];if(!fx||!cue.on)return
+  // a trail drops a patch each step of the way, up to the length this level allows
+  if(fx.trail&&this.trailPts&&this.trailLen<fx.trail.length){
+   const last=this.trailPts[this.trailPts.length-1]
+   if(!last||Math.hypot(cue.x-last.x,cue.y-last.y)>=TRAIL_STEP){this.trailPts.push({x:Math.round(cue.x),y:Math.round(cue.y)});this.trailLen+=last?TRAIL_STEP:0}
+  }
   for(const [id,sign] of [['stink',1],['cute',-1]]){
    if(!fx[id])continue
    for(const b of this.balls){
@@ -659,6 +666,16 @@ export class PoolGame{
   if(this.mode!=='push'||!this.canControl()||this.turn!==me||!this.push[me].items.includes('cannon'))return
   this.armedItem=this.armedItem==='cannon'?null:'cannon'
  }
+ // What the cue ball left behind: patches of ice, electricity, sand or plasma, or a line of stone posts. Not under the cue ball itself.
+ layTrail(){
+  const pts=this.trailPts,variant=this.shotFxTrail
+  this.trailPts=null;this.shotFxTrail=null
+  if(!pts?.length||!variant)return
+  const cue=this.balls[0],ttl=TRAIL_LIFE
+  const marks=pts.filter(p=>!cue.on||Math.hypot(p.x-cue.x,p.y-cue.y)>R*2.2).slice(0,TRAIL_MAX)
+  const made=marks.map(p=>variant==='stone'?{t:'bumper',x:p.x,y:p.y,r:5,ttl}:{t:'slick',variant,x:p.x,y:p.y,r:TRAIL_R,ttl})
+  if(made.length)this.push={...this.push,obstacles:[...(this.push.obstacles||[]),...made].slice(-60)}
+ }
  payJump(){
   const r=payPower(this.push,this.score,this.turn,'jump',1,'before')
   if(r.ok){this.score=r.score;this.flash('Jump · -'+powerCost('jump',1))}
@@ -769,6 +786,7 @@ export class PoolGame{
   if(this.chal)return this.resolveChallenge()
   const shooter=this.turn
   const v=judgeShot(this)
+  this.shotFxTrail=this.shotFx?.trail?.variant||null
   this.shotFx=null      // whatever was armed for this shot is spent, however it ends
   if(v.respotNine)this.respotNine(v.respotBall||9)
   if(v.score){this.score=v.score;this.scoreMessage(v,shooter);if(v.rerack)this.reRack()}
