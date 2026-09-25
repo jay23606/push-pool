@@ -29,7 +29,7 @@ export const difficultyFor=level=>level==='coach'?COACH:AI_LEVELS[level]||AI_LEV
 // which balls this player is allowed to hit first. In nine-ball that is exactly
 // one ball -- the lowest on the table -- whoever is shooting.
 export function legalTargets(balls,group,mode='8ball'){
- if(isScoreMode(mode))return balls.filter(b=>b.on&&b.k!=='cue')     // bank pool and one-pocket: any ball
+ if(isScoreMode(mode))return balls.filter(b=>b.on&&b.k!=='cue'&&b.k!=='dummy')     // bank pool and one-pocket: any ball
  if(isRotation(mode)){const low=lowestBall(balls);return balls.filter(b=>b.on&&b.n===low)}
  return balls.filter(b=>b.on&&b.k!=='cue'&&
   (group?b.k===(remaining(balls,group)?group:'eight'):b.k!=='eight'))

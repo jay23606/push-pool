@@ -4,6 +4,10 @@ import {integrate,railBounce,ballCollide,substeps,atRest,clearMotion,strike,shot
 import {normalizeHouse,nextBreaker,placementLimit} from './house.js'
 import {airborne} from './physics.js'
 import {drawTwist,blast,wellPull,bonusPocket,twistName} from './chaos.js'
+import {collectPickups,afterShot,choosePower,payPower} from './push/logic.js'
+import {renderPushPanel} from './push/panel.js'
+import {powerCost} from './push/powers.js'
+import {ITEMS} from './push/items.js'
 import {newRun as newRogueRun,judge as judgeRogue,choose as chooseRogue,advance as advanceRogue,offer as offerRogue,POCKET_BOOST} from './rogue.js'
 import {other,remaining as countLeft,nearestPocket,validCueSpot,judgeShot,opposite,normalizeGroup,modeOf,lowestBall,nineRespot,MODES,isScoreMode,ONE_POCKET,targetFor,isRotation,MONEY,trianglePositions,kind} from './rules.js'
 import {chooseShot} from './ai.js'
@@ -110,7 +114,7 @@ export class PoolGame{
  }
  resetRack(){Object.assign(this,freshRackState(this.mode));
   // obstacle tables are for practice, hot-seat and puzzles; the scored challenge games and Rogue Pool keep a clear cloth
-  setObstacles(presetItems(this.drill?this.drill.obs:(this.rogueSeed!=null||this.challenge||this.mode==='chaos')?null:this.obstacles));this.lastCoach=null;if(this.drill){this.balls=buildBalls(this.drill);this.breakShot=false;this.attempts=0;this.drillOutcome=null;this.hinted=false;clearTimeout(this.retryTimer)};this.fx=null;if(this.mode==='chaos')this.fx=drawTwist(this.balls);if(this.rogueSeed!=null){this.run=newRogueRun(this.rogueSeed);this.chal={id:'rogue',over:false};this.rogueWait=false;this.breakShot=false;this.balls=this.rogueRack()};if(this.challenge){this.chal=beginChallenge(this.challenge);this.breakShot=false;this.balls=this.challengeRack()};this.rec=null;this.lastReplay=null;this.replay=null;this.onReplay?.(null);this.shots={a:0,b:0};this.angle=openingAim(this.balls);this.pointerAngle=this.angle;this.aiming=this.me==='a';this.setSpin(0,0)}
+  setObstacles(presetItems(this.drill?this.drill.obs:(this.rogueSeed!=null||this.challenge||this.mode==='chaos'||this.mode==='push')?null:this.obstacles));this.lastCoach=null;if(this.drill){this.balls=buildBalls(this.drill);this.breakShot=false;this.attempts=0;this.drillOutcome=null;this.hinted=false;clearTimeout(this.retryTimer)};this.fx=null;if(this.mode==='chaos')this.fx=drawTwist(this.balls);if(this.rogueSeed!=null){this.run=newRogueRun(this.rogueSeed);this.chal={id:'rogue',over:false};this.rogueWait=false;this.breakShot=false;this.balls=this.rogueRack()};if(this.challenge){this.chal=beginChallenge(this.challenge);this.breakShot=false;this.balls=this.challengeRack()};this.rec=null;this.lastReplay=null;this.replay=null;this.onReplay?.(null);this.shots={a:0,b:0};this.angle=openingAim(this.balls);this.pointerAngle=this.angle;this.aiming=this.me==='a';this.setSpin(0,0)}
  bind(){this.unbindInput=bindGameInput(this)} point(e){return this.renderer.point(e)}
  setRenderer(r){this.renderer=r}
  // Tip contact point, in ball radii. Sideways is English, vertical is
@@ -156,6 +160,7 @@ export class PoolGame{
  }
  // Jump shots are a house rule, off unless the table was set up for them; drills and challenges never allow one.
  jumpAllowed(){
+  if(this.mode==='push')return Boolean(this.push?.[this.turn]?.powers.jump)&&(this.score?.[this.turn]||0)>=powerCost('jump',1)&&!this.replay
   if(this.rogueSeed!=null&&this.run)return this.run.jumps>0     // a run has its own jumps, bought as upgrades
   return Boolean(this.house&&this.house.jumps)&&!this.drill&&!this.chal
  }
@@ -170,12 +175,14 @@ export class PoolGame{
   const called=this.canCallEight()?this.calledPocket:null
   const jump=this.jumpAllowed()&&Boolean(this.jumpOn)
   this.jumpOn=false;this.usedJump=jump
+  if(jump&&this.host&&this.mode==='push')this.payJump()
   this.startShot();if(this.host)strike(this.balls[0],vx,vy,spin[0],spin[1],jump);else this.send({t:'shot',vx,vy,spin,place:this.pendingPlace,called,...(jump?{jump:true}:{})});this.pendingPlace=null}
  startShot(){if(this.chal&&this.chal.startedAt==null)this.chal=startClock(this.chal,performance.now());this.shots??={a:0,b:0};this.shots[this.turn]=(this.shots[this.turn]||0)+1;this.placed=false;this.potted=[];this.firstObjectPotted=null;this.scratch=false;this.firstHit=null;this.before=this.group()?this.remaining(this.group()):null;this.lowest=lowestBall(this.balls);this.railHit=false;this.pocketOf={};this.railBalls=new Set();this.cueRailFirst=false;this.phase='roll';this.noteRecording(true)}
  receive(m){
   if(!isGameMessage(m))return
   if(m.t==='table'&&!this.host)return this.onTable?.(m)
   if(m.t==='next-rack'&&this.host)return this.newRack()
+  if(m.t==='pick'&&this.host&&this.turn==='b')return this.applyPick('b',m.id)
   if(m.t==='state'&&!this.host)return this.receiveState(m)
   if(m.t==='shot'&&this.host&&this.turn==='b'&&this.phase==='aim')this.receiveShot(m)
  }
@@ -221,7 +228,9 @@ export class PoolGame{
  receiveShot(m){
   if(m.place&&this.validCueSpot({x:m.place[0],y:m.place[1]})){this.balls[0].x=m.place[0];this.balls[0].y=m.place[1];this.ballInHand=false}
   this.calledPocket=this.canCallEight()?(m.called??null):null
-  this.startShot();strike(this.balls[0],m.vx,m.vy,m.spin?.[0]||0,m.spin?.[1]||0,Boolean(m.jump)&&this.jumpAllowed())
+  const jump=Boolean(m.jump)&&this.jumpAllowed()
+  if(jump&&this.mode==='push')this.payJump()
+  this.startShot();strike(this.balls[0],m.vx,m.vy,m.spin?.[0]||0,m.spin?.[1]||0,jump)
  }
  // Hot-seat: two people share one device. Whoever's turn it is is "me" -- every rule and every
  // control already speaks of the shooter that way -- and the names are theirs, not You/AI.
@@ -322,7 +331,39 @@ export class PoolGame{
  }
  // The next shot's twist, in Chaos Pool.
  newTwist(){if(this.mode==='chaos'){this.fx=drawTwist(this.balls);this.flash(`Twist: ${twistName(this.fx).toLowerCase()}`)}}
+ // P.U.S.H. Pool. The host judges everything; a guest only asks (a pick, a jump) and is told the result in the next state.
+ pushAfterShot(shooter,v){
+  if(!this.push)return
+  const r=afterShot(this.push,{shooter,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY}})
+  this.push=r.push
+  if(r.messages.length)this.flash(r.messages[0])
+  // the practice AI takes its level-up at once, at random
+  if(this.push.offers&&this.practice&&!this.hotSeat&&this.turn==='b')this.applyPick('b',this.push.offers[Math.floor(Math.random()*this.push.offers.length)].id)
+ }
+ applyPick(player,id){
+  if(!this.push||this.turn!==player)return
+  const next=choosePower(this.push,player,id);if(next===this.push)return
+  this.push=next;this.sync()
+ }
+ pickPower(id){
+  const me=this.hotSeat?this.turn:this.me
+  if(this.mode!=='push'||!this.push?.offers||this.turn!==me||this.spectator)return
+  if(this.host)this.applyPick(me,id);else this.send({t:'pick',id})
+ }
+ payJump(){
+  const r=payPower(this.push,this.score,this.turn,'jump',1,'before')
+  if(r.ok){this.score=r.score;this.flash('Jump · -'+powerCost('jump',1))}
+ }
+ collect(){
+  if(this.mode!=='push'||!this.push?.pickups?.length)return
+  const r=collectPickups(this.push,this.score,this.turn,this.balls[0])
+  if(!r.collected.length)return
+  this.push=r.push;this.score=r.score
+  const gems=r.collected.filter(k=>k.kind==='gem').reduce((n,k)=>n+k.v,0),items=r.collected.filter(k=>k.kind==='item')
+  this.flash(items.length?'Picked up '+ITEMS[items[0].id].name:'+'+gems)
+ }
  sub(dt){
+  this.collect()
   const well=this.fx&&this.fx.type==='well'?this.fx:null,pockets=this.pocketList(),scale=this.pocketScale()
   for(const b of this.balls){
    if(!b.on)continue
@@ -426,6 +467,7 @@ export class PoolGame{
   if(v.foul)this.foul(v.reason)
   else if(v.nextTurn!==shooter){this.turn=v.nextTurn;this.calledPocket=null}
   this.breakShot=false;this.balls.forEach(clearMotion);this.phase='aim'
+  if(this.mode==='push')this.pushAfterShot(shooter,v)
   this.newTwist()
   this.sync()
   if(this.practice&&!this.hotSeat&&!this.over&&this.turn==='b')setTimeout(()=>this.aiShot(),650)
@@ -475,7 +517,7 @@ export class PoolGame{
  // Straight pool is continuous: with one ball left, the other fourteen are racked again as a triangle
  // with its apex open. A ball that was left in the way of the rack goes on the apex instead.
  reRack(){
-  const cue=this.balls[0],objects=this.balls.filter(b=>b.k!=='cue'),left=objects.find(b=>b.on)||null
+  const cue=this.balls[0],objects=this.balls.filter(b=>b.k!=='cue'&&b.k!=='dummy'),left=objects.find(b=>b.on)||null
   const slots=trianglePositions(5)
   let apexTaken=false
   if(left&&left.x>=400&&Math.abs(left.y-190)<80){left.x=slots[0][0];left.y=slots[0][1];clearMotion(left);apexTaken=true}
@@ -492,7 +534,7 @@ export class PoolGame{
   if(v.foul)return
   if(v.credited.length){
    const mine=v.credited.filter(c=>c.to===shooter).length,theirs=v.credited.length-mine
-   if(v.credited.some(c=>c.points>1)){this.flash(`BONUS · +${v.credited.reduce((n,c)=>n+c.points,0)} · ${v.score[shooter]} of ${(this.scoreTarget||targetFor(this.mode))}`);return}
+   if(this.mode!=='push'&&v.credited.some(c=>c.points>1)){this.flash(`BONUS · +${v.credited.reduce((n,c)=>n+c.points,0)} · ${v.score[shooter]} of ${(this.scoreTarget||targetFor(this.mode))}`);return}
    this.flash(theirs&&!mine?`${who(shooter)} sank it in ${who(other(shooter))}’s pocket`:mine?`${who(shooter)} scored${mine>1?` ${mine}`:''} · ${v.score[shooter]} of ${(this.scoreTarget||targetFor(this.mode))}`:'')
   }else if(v.wasted.length)this.flash(this.mode==='bank'?`No bank · ball ${v.wasted[0]} does not count`:`Wrong pocket · ball ${v.wasted[0]} does not count`)
  }
@@ -501,13 +543,14 @@ export class PoolGame{
   const a=this.score?.a||0,b=this.score?.b||0
   const nm=p=>this.hotSeat?this.nameOf(p).toUpperCase():p===this.me?'YOU':this.practice?'AI':'THEM'
   const me=this.hotSeat?this.turn:this.me,opp=other(me)
-  const label=this.mode==='bank'?'BANK POOL':this.mode==='straight'?'STRAIGHT POOL':this.mode==='chaos'?`CHAOS POOL · ${twistName(this.fx)}`:'ONE-POCKET'
+  renderPushPanel(this)
+  const label=this.mode==='push'?'P.U.S.H. POOL':this.mode==='bank'?'BANK POOL':this.mode==='straight'?'STRAIGHT POOL':this.mode==='chaos'?`CHAOS POOL · ${twistName(this.fx)}`:'ONE-POCKET'
   if(this.groupStatus){const text=`${label} · ${nm(me)} ${me==='a'?a:b} – ${opp==='a'?a:b} ${nm(opp)} · FIRST TO ${(this.scoreTarget||targetFor(this.mode))}`;if(this.groupStatus.textContent!==text){this.groupStatus.textContent=text;this.groupStatus.className=''}}
   this.shoot.disabled=!this.canAim()||!this.aiming
   const live=this.canControl()&&!this.ballInHand
   if(this.moveCue)this.moveCue.hidden=!(live&&this.placed)
   if(this.changePocket)this.changePocket.hidden=true
-  const rule=this.mode==='bank'?'bank it off a cushion':this.mode==='straight'?'pot any ball, a foul costs a point':this.mode==='chaos'?'pot any ball, mind the twist':'sink it in the ringed pocket'
+  const rule=this.mode==='push'?'pot for points, grab gems and items':this.mode==='bank'?'bank it off a cushion':this.mode==='straight'?'pot any ball, a foul costs a point':this.mode==='chaos'?'pot any ball, mind the twist':'sink it in the ringed pocket'
   this.status.textContent=this.spectator?'Spectating live · controls are with the players':!this.ready?'Waiting for another player…':this.over?(this.result===this.me?'You won the rack':'Opponent won the rack'):this.turn===this.me?(this.ballInHand?'Ball in hand · tap table to place cue':`Your shot · ${rule}`):this.practice?'AI is lining up…':'Opponent’s turn'
   if(this.hotSeat)this.status.textContent=this.hotStatus(this.status.textContent)
  }

@@ -1,4 +1,4 @@
-import {W,H,R,PR,POCKETS,COLORS} from './table.js'
+import {W,H,R,PR,POCKETS,COLORS,DUMMY_COLOR,GEM_COLOR,ITEM_COLOR} from './table.js'
 import {rayToRail,bankPath} from './pool.js'
 import {tableFractions} from './screen-point.js'
 import {getObstacles,WALL_R} from './obstacles.js'
@@ -18,7 +18,8 @@ const tx=x=>x-W/2, tz=y=>y-H/2   // table coords -> world (y is up)
 function ballTexture(THREE,kind,n){
  const TW=512,TH=256,cap=.085,c=document.createElement('canvas');c.width=TW;c.height=TH
  const g=c.getContext('2d'),white='#f7f4e9',col=COLORS[n]
- if(kind==='cue'){g.fillStyle='#f2efe4';g.fillRect(0,0,TW,TH);g.fillStyle='#b83232';for(const[u,v]of[[.25,.5],[.75,.5],[.5,.28],[.0,.72]]){g.beginPath();g.arc(u*TW,v*TH,9,0,7);g.fill()}}
+ if(kind==='dummy'){g.fillStyle=DUMMY_COLOR;g.fillRect(0,0,TW,TH)}
+ else if(kind==='cue'){g.fillStyle='#f2efe4';g.fillRect(0,0,TW,TH);g.fillStyle='#b83232';for(const[u,v]of[[.25,.5],[.75,.5],[.5,.28],[.0,.72]]){g.beginPath();g.arc(u*TW,v*TH,9,0,7);g.fill()}}
  else{
   g.fillStyle=white;g.fillRect(0,0,TW,TH)
   // solids are colour everywhere but the poles; stripes keep a white band top and bottom
@@ -240,6 +241,16 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
  const bonusDisc=new THREE.Mesh(new THREE.CylinderGeometry(PR*.9,PR*.9,2,28),new THREE.MeshBasicMaterial({color:'#05100b'}));const bonusRing=new THREE.Mesh(new THREE.TorusGeometry(PR*.9+2,1.8,8,36),new THREE.MeshBasicMaterial({color:'#ffd75d'}))
  bonusDisc.visible=bonusRing.visible=false;bonusRing.rotation.x=-Math.PI/2;scene.add(bonusDisc,bonusRing)
  const wellDisc=new THREE.Mesh(new THREE.CircleGeometry(1,40),new THREE.MeshBasicMaterial({color:'#9a5bff',transparent:true,opacity:.28,depthWrite:false}));wellDisc.rotation.x=-Math.PI/2;wellDisc.visible=false;scene.add(wellDisc)
+ // P.U.S.H. Pool pickups: rebuilt when the list changes, spun every frame
+ const pickGroup=new THREE.Group();scene.add(pickGroup);let pickShown=null
+ function buildPickups(list){
+  for(const m of [...pickGroup.children]){pickGroup.remove(m);m.geometry.dispose();m.material.dispose()}
+  for(const k of list){
+   const m=k.kind==='gem'?new THREE.Mesh(new THREE.OctahedronGeometry(R*.7),new THREE.MeshStandardMaterial({color:GEM_COLOR,emissive:GEM_COLOR,emissiveIntensity:.35,roughness:.2}))
+    :new THREE.Mesh(new THREE.BoxGeometry(R*1.2,R*1.2,R*1.2),new THREE.MeshStandardMaterial({color:ITEM_COLOR,emissive:ITEM_COLOR,emissiveIntensity:.3,roughness:.4}))
+   m.position.set(tx(k.x),R*.9,tz(k.y));m.castShadow=true;pickGroup.add(m)
+  }
+ }
  const bombRing=new THREE.Mesh(new THREE.TorusGeometry(R+3,1.4,8,28),new THREE.MeshBasicMaterial({color:'#ff503c'}));bombRing.rotation.x=-Math.PI/2;bombRing.visible=false;scene.add(bombRing)
  // Obstacle tables: rebuilt whenever the game's set of obstacles changes
  const obsGroup=new THREE.Group();scene.add(obsGroup);let obsShown=null
@@ -283,7 +294,7 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
    stripe.rotation.x=Math.PI/2;stripe.position.set(tx(b.x),R+.16,tz(b.y));stripe.castShadow=true;scene.add(stripe)
   }
   let badge=null
-  if(b.k!=='cue'){
+  if(b.k!=='cue'&&b.k!=='dummy'){
    badge=numberCap(THREE,b.n,b.k);badge.rotation.x=-Math.PI/2;badge.position.set(tx(b.x),R+1,tz(b.y));badge.renderOrder=10;scene.add(badge)
   }
   mesh.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6)
@@ -406,6 +417,9 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
    const pk=game.pocketScale?game.pocketScale():1
    for(const m of pocketMeshes)m.scale.set(pk,1,pk)
    const obs=getObstacles();if(obs!==obsShown){obsShown=obs;buildObstacles(obs)}
+   const picks=game.push?.pickups||[]
+   if(picks!==pickShown){pickShown=picks;buildPickups(picks)}
+   for(const m of pickGroup.children){m.rotation.y+=dt*1.8;m.position.y=R*.9+Math.sin(performance.now()/300+m.position.x)*1.2}
    const fx=game.fx
    bonusDisc.visible=bonusRing.visible=Boolean(fx&&fx.type==='bonus')
    if(bonusRing.visible){bonusDisc.position.set(tx(fx.x),1.2,tz(fx.y));bonusRing.position.set(tx(fx.x),2.2,tz(fx.y))}

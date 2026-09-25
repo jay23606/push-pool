@@ -1,4 +1,4 @@
-import {W,H,R,PR,POCKETS,COLORS} from './table.js'
+import {W,H,R,PR,POCKETS,COLORS,DUMMY_COLOR,GEM_COLOR,ITEM_COLOR} from './table.js'
 import {rayToRail,bankPath} from './pool.js'
 import {tableFractions} from './screen-point.js'
 import {getObstacles,WALL_R} from './obstacles.js'
@@ -12,10 +12,10 @@ export function createRenderer2D(canvas,options={}){
  function drawBall(b){
   g.save();g.beginPath();g.arc(b.x,b.y,R,0,7);g.clip()
   const surface=g.createRadialGradient(b.x-3.5,b.y-4,1,b.x+2,b.y+3,R*1.25)
-  surface.addColorStop(0,'#fff');surface.addColorStop(.24,b.k==='cue'?'#e7e7e1':COLORS[b.n]);surface.addColorStop(.78,b.k==='cue'?'#c7c7c0':COLORS[b.n]);surface.addColorStop(1,'#101510')
+  surface.addColorStop(0,'#fff');surface.addColorStop(.24,b.k==='cue'?'#e7e7e1':b.k==='dummy'?DUMMY_COLOR:COLORS[b.n]);surface.addColorStop(.78,b.k==='cue'?'#c7c7c0':b.k==='dummy'?DUMMY_COLOR:COLORS[b.n]);surface.addColorStop(1,'#101510')
   g.fillStyle=surface;g.fillRect(b.x-R,b.y-R,2*R,2*R)
   if(b.k==='stripe'){g.fillStyle='#f9f6eb';g.fillRect(b.x-R,b.y-4.4,2*R,8.8)}
-  if(b.k!=='cue'){g.fillStyle='#f7f4e9';g.beginPath();g.arc(b.x,b.y,4.45,0,7);g.fill();g.fillStyle='#172018';g.font='bold 5px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText(b.n,b.x,b.y+.4)}
+  if(b.k!=='cue'&&b.k!=='dummy'){g.fillStyle='#f7f4e9';g.beginPath();g.arc(b.x,b.y,4.45,0,7);g.fill();g.fillStyle='#172018';g.font='bold 5px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText(b.n,b.x,b.y+.4)}
   g.restore()
   g.strokeStyle='rgba(0,0,0,.48)';g.lineWidth=.65;g.beginPath();g.arc(b.x,b.y,R,0,7);g.stroke()
   g.fillStyle='rgba(255,255,255,.72)';g.beginPath();g.arc(b.x-3.3,b.y-3.7,1.9,0,7);g.fill()
@@ -32,6 +32,12 @@ export function createRenderer2D(canvas,options={}){
    g.fillStyle='#07100c'
    const pk=game.pocketScale?game.pocketScale():1
    POCKETS.forEach(([x,y],i)=>{g.beginPath();g.arc(x,y,(PR-2)*pk,0,7);g.fill();if((game.markedPocket?game.markedPocket():game.calledPocket)===i){g.strokeStyle='#ffd75d';g.lineWidth=3;g.beginPath();g.arc(x,y,PR+3,0,7);g.stroke()}if(game.snapMark&&game.snapMark()===i){g.strokeStyle='#ffffffb0';g.lineWidth=2;g.beginPath();g.arc(x,y,PR+1,0,7);g.stroke()}})
+   // P.U.S.H. Pool pickups: a gem is a blue diamond, an item an amber box, both bobbing a little
+   for(const k of game.push?.pickups||[]){
+    const bob=Math.sin(performance.now()/300+k.x)*1.5
+    if(k.kind==='gem'){g.fillStyle=GEM_COLOR;g.strokeStyle='#eafaff';g.lineWidth=1.2;g.beginPath();g.moveTo(k.x,k.y-7+bob);g.lineTo(k.x+5,k.y+bob);g.lineTo(k.x,k.y+7+bob);g.lineTo(k.x-5,k.y+bob);g.closePath();g.fill();g.stroke()}
+    else{g.fillStyle=ITEM_COLOR;g.strokeStyle='#fff3d6';g.lineWidth=1.2;g.fillRect(k.x-6,k.y-6+bob,12,12);g.strokeRect(k.x-6,k.y-6+bob,12,12);g.fillStyle='#5a3a00';g.font='bold 9px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('?',k.x,k.y+bob+.5)}
+   }
    const fx=game.fx
    if(fx){
     const t=(typeof performance!=='undefined'?performance.now():0)/1000

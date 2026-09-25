@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict'
+import {R} from '../src/table.js'
 import {POWERS,POWER_IDS,MAX_LEVEL,powerCost} from '../src/push/powers.js'
 import {ITEMS,ITEM_IDS,rollItem,rollGem,GEM_VALUES} from '../src/push/items.js'
 import {isDummy,makeDummy,nextDummyId,realBalls,splitPotted,dummyPoints,scatterDummies} from '../src/push/dummy.js'
@@ -196,4 +197,72 @@ test('push state travels in the snapshot and is validated',()=>{
  assert.equal(validPush({...good,spawns:[{type:'gemdrop',ttl:1,x:'a'}]}),false,'bad coordinate')
  assert.equal(validPush({...good,offers:[{id:'spin',level:0}]}),false,'bad offer')
  assert.equal(isGameMessage({...s,push:{a:1}}),false,'a malformed push field drops the message')
+})
+
+// ---- the logic around a shot ----
+import {collectPickups,afterShot,choosePower,payPower,freeSpot,LIVE_SPAWNS,GEM_LIFE} from '../src/push/logic.js'
+const BOUNDS={minx:40,maxx:660,miny:40,maxy:340}
+const withPush=(o={})=>({...freshPush(),...o})
+
+test('the cue ball takes gems as points and items into hand, only when it is over them',()=>{
+ const push=withPush({pickups:[{kind:'gem',v:5,x:100,y:100,ttl:2},{kind:'item',id:'bomb',x:104,y:100,ttl:2},{kind:'gem',v:9,x:300,y:300,ttl:2}]})
+ const far=collectPickups(push,{a:0,b:0},'a',{x:500,y:50,on:true});assert.equal(far.collected.length,0);assert.equal(far.push,push)
+ const r=collectPickups(push,{a:3,b:0},'a',{x:102,y:100,on:true})
+ assert.equal(r.score.a,8);assert.deepEqual(r.push.a.items,['bomb']);assert.equal(r.push.pickups.length,1);assert.equal(r.collected.length,2)
+ assert.equal(collectPickups(push,{a:0,b:0},'a',{x:102,y:100,on:false}).collected.length,0,'a potted cue ball takes nothing')
+ assert.equal(push.pickups.length,3,'the input is never mutated')
+})
+
+test('a legal pot owes a pick and puts three offers up; choosing takes one and clears them',()=>{
+ const r=afterShot(withPush(),{shooter:'a',levelUps:1,turnChanged:false,balls:[],bounds:BOUNDS,rand:seeded(3)})
+ assert.equal(r.push.a.picks,1);assert.equal(r.push.offers.length,3);assert.ok(r.messages.some(m=>/Level up/.test(m)))
+ const id=r.push.offers[1].id,after=choosePower(r.push,'a',id,seeded(4))
+ assert.equal(after.a.powers[id],1);assert.equal(after.a.picks,0);assert.equal(after.offers,null)
+ assert.equal(choosePower(r.push,'a','fly',seeded(4)),r.push,'a power that was not offered changes nothing')
+ const idle=withPush();assert.equal(choosePower(idle,'a','guide'),idle,'no offers up, nothing happens')
+})
+
+test('two picks owed means a second offer once the first is taken',()=>{
+ const r=afterShot(withPush(),{shooter:'a',levelUps:2,balls:[],bounds:BOUNDS,rand:seeded(8)})
+ const first=choosePower(r.push,'a',r.push.offers[0].id,seeded(9))
+ assert.equal(first.a.picks,1);assert.equal(first.offers.length,3)
+})
+
+test('nothing is dealt and nothing ages until the turn passes; then pickups age and drop out',()=>{
+ const push=withPush({pickups:[{kind:'gem',v:1,x:60,y:60,ttl:1},{kind:'gem',v:1,x:90,y:90,ttl:3}]})
+ assert.equal(afterShot(push,{shooter:'a',turnChanged:false,balls:[],bounds:BOUNDS}).push.pickups.length,2)
+ const r=afterShot(push,{shooter:'a',turnChanged:true,balls:[],bounds:BOUNDS,rand:()=>.99})   // .99: nothing dealt
+ assert.deepEqual(r.push.pickups.map(k=>k.ttl),[2]);assert.equal(r.push.turns,1)
+})
+
+test('dealing on a turn change drops gems or an item, only the implemented kinds, on free spots',()=>{
+ let gems=0,items=0
+ for(let i=1;i<=80;i++){
+  const balls=[{n:0,k:'cue',on:true,x:154,y:190}]
+  const r=afterShot(withPush({turns:1}),{shooter:'a',turnChanged:true,balls,bounds:BOUNDS,rand:seeded(i)})
+  for(const k of r.push.pickups){
+   assert.ok(Math.hypot(k.x-154,k.y-190)>=R*2.2,'clear of the cue ball');assert.ok(k.x>=40&&k.x<=660&&k.y>=40&&k.y<=340)
+   if(k.kind==='gem'){gems++;assert.equal(k.ttl,GEM_LIFE)}else items++
+  }
+  assert.ok(r.push.spawns.every(s=>LIVE_SPAWNS.includes(s.type)),'unimplemented hazards are never dealt')
+  assert.ok(isGameMessage(snapshotOf({...freshRackState('push'),balls:rack('push'),round:1,push:r.push})),'the result is valid on the wire')
+ }
+ assert.ok(gems>0&&items>0,'both kinds turn up')
+})
+
+test('the table starts with nothing on it: the break is standard',()=>{
+ assert.equal(freshPush().pickups.length,0);assert.equal(freshPush().spawns.length,0)
+})
+
+test('paying for a power comes out of the score and only when allowed',()=>{
+ const push=withPush({a:{powers:{jump:1},items:[],picks:0}})
+ const ok=payPower(push,{a:10,b:0},'a','jump',1,'before');assert.equal(ok.ok,true);assert.equal(ok.score.a,10-powerCost('jump',1))
+ assert.equal(payPower(push,{a:1,b:0},'a','jump',1,'before').why,'too-expensive')
+ assert.equal(payPower(push,{a:10,b:0},'b','jump',1,'before').why,'not-owned','b has not unlocked it')
+ assert.equal(payPower(push,{a:10,b:0},'a','jump',2,'before').why,'not-owned')
+})
+
+test('freeSpot gives up cleanly when the table is full',()=>{
+ assert.equal(freeSpot([{on:true,x:100,y:100}],[],{minx:100,maxx:100,miny:100,maxy:100},seeded(1)),null)
+ assert.ok(freeSpot([],[],BOUNDS,seeded(1)))
 })

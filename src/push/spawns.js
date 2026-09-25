@@ -25,6 +25,7 @@ const between=(rand,[lo,hi])=>lo+Math.floor(rand()*(hi-lo+1))
 
 function pickType(rand,exclude){
  const ids=SPAWN_IDS.filter(id=>!exclude.includes(id))
+ if(!ids.length)return null
  const total=ids.reduce((s,id)=>s+SPAWN_TYPES[id].weight,0)
  let x=rand()*total
  for(const id of ids){x-=SPAWN_TYPES[id].weight;if(x<0)return id}
@@ -44,10 +45,10 @@ export function makeSpawn(type,rand,at){
 
 // Deal for the coming turn. `turnNumber` counts turns played (0 = the break, which is standard: nothing).
 // A type already active is not dealt again, so the table does not stack five wormholes.
-export function dealSpawns(active,turnNumber,rand=Math.random,place=()=>[0,0]){
+export function dealSpawns(active,turnNumber,rand=Math.random,place=()=>[0,0],enabled=SPAWN_IDS){
  if(turnNumber<1||active.length>=MAX_ACTIVE||rand()>=SPAWN_CHANCE)return []
- const type=pickType(rand,active.map(s=>s.type))
- return [makeSpawn(type,rand,place(type))]
+ const type=pickType(rand,[...active.map(s=>s.type),...SPAWN_IDS.filter(id=>!enabled.includes(id))])
+ return type?[makeSpawn(type,rand,place(type))]:[]
 }
 
 // One turn passes: everything loses a turn of life; what reaches zero has expired.
