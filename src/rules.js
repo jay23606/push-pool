@@ -246,7 +246,7 @@ export function judgeScoreGame(s){
  if(mode==='push'&&reason)score[shooter]=Math.max(0,score[shooter]-PUSH_FOUL)
  let winner=score.a>=target?'a':score.b>=target?'b':null
  if(!winner&&left===0&&mode!=='straight'&&mode!=='chaos'&&mode!=='push')winner=score.a>score.b?'a':score.b>score.a?'b':opponent
- const kept=!reason&&credited.some(c=>c.to===shooter)
+ const kept=!reason&&credited.some(c=>c.to===shooter)&&!s.oneShot     // a house rule can make every turn a single shot
  // straight pool is continuous: when one ball is left the fourteen are racked again around it
  const rerack=(mode==='straight'||mode==='chaos'||mode==='push')&&!winner&&left<=1
  return {winner,foul:Boolean(reason),reason,assign:null,nextTurn:reason||!kept?opponent:shooter,score,credited,wasted,rerack,dummyGain,levelUps:reason?0:levelUps}

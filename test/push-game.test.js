@@ -641,3 +641,22 @@ test('the cannon house rule gives everyone a cannon at the start of each rack',(
 test('an unbuilt item is never dropped',()=>{
  for(let i=0;i<3000;i++)assert.notEqual(rollItem(Math.random),'roller')
 })
+
+test('one shot per turn: the turn passes after a pot, and the level-up waits for the owner next turn',()=>{
+ const rules={race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false,cannon:false,oneShot:true}
+ const {g}=game({house:rules,oneShot:true});clear(g);const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250;put(g,1,350,120);put(g,14,600,330);put(g,15,620,300)
+ strike(cue,0,-1300);g.startShot();roll(g)
+ assert.equal(g.score.a,10);assert.equal(g.turn,'b','the turn passed although a ball dropped');assert.equal(g.push.a.picks,1);assert.equal(g.push.offers,null,'b has nothing to pick')
+ // it is offered again when the turn comes back
+ g.pushAfterShot('b',{levelUps:0,nextTurn:'a',foul:false});assert.equal(g.push.offers.length,3)
+})
+
+test('one shot per turn under 8-ball rules too',()=>{
+ const rules={race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false,cannon:false,oneShot:true}
+ const {g}=game({mode:'push8',house:rules,oneShot:true,score:{a:0,b:0},groups:{a:'solid',b:'stripe'},balls:rack('push8')});clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250
+ const own=g.balls.find((b,i)=>i&&b.k==='solid');own.on=true;own.x=350;own.y=120
+ const opp=g.balls.find((b,i)=>i&&b.k==='stripe');opp.on=true;opp.x=600;opp.y=330
+ strike(cue,0,-1300);g.startShot();roll(g)
+ assert.equal(own.on,false);assert.equal(g.score.a,10);assert.equal(g.turn,'b')
+})

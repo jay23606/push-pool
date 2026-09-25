@@ -37,7 +37,7 @@ Points are the score **and** what powers cost.
 | **AI** | The practice opponent throws bombs at clusters, lights powder, and arms pop or cute. |
 
 Not built yet: the Roller (a movable cylinder; it is in the catalogue but never dropped) and the no-solids multi-player / team mode
-(more than two players, one shot per turn).
+(more than two players; a house rule already gives one shot per turn).
 
 ## How it fits together
 

@@ -641,3 +641,10 @@ test('collisions: two ordinary balls behave exactly as before; a heavy ball bare
  const [heavyHitter,ordinary]=two({...makeHeavy([],100,100),vx:300},{k:'solid',n:2});assert.ok(ordinary.vx>b.vx,'what a heavy ball hits is sent flying');assert.ok(heavyHitter.vx>150,'and it plows on')
  for(const [x,y] of [two({k:'solid',n:1},makeHeavy([],117,100)),two({...makeLight([],100,100),vx:300},{k:'solid',n:2})])assert.ok(Math.abs(x.vx*massOf(x)+y.vx*massOf(y)-300*massOf(x))<1e-6,'momentum along the line is conserved')
 })
+
+test('oneShot: a legal pot scores and owes a level-up but the turn passes to the opponent',()=>{
+ const v=judgeScoreGame(shot({potted:[real(3)],oneShot:true}))
+ assert.equal(v.score.a,PUSH_POT);assert.equal(v.levelUps,1);assert.equal(v.nextTurn,'b')
+ assert.equal(judgeScoreGame(shot({potted:[real(3)],oneShot:false})).nextTurn,'a','without the rule the shooter keeps the turn')
+ const eightShot=eight({groups:{a:'solid',b:'stripe'},potted:[solid(1)]});assert.equal(judgeShot(eightShot).nextTurn,'a')
+})
