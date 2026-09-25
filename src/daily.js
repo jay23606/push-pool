@@ -52,7 +52,7 @@ export const dailyNumberOf=id=>isDaily(id)?Number(id.slice(6)):null
 // What to paste to a friend. `record` is what the drill progress holds for that day.
 export function shareText(n,level,record){
  const how=!record?.done?'Still working on it':record.best==null?'Solved, with a little help':record.best===1?'Potted it first go':`Potted it in ${record.best} tries`
- return `Pool Masters Daily #${n} ${'★'.repeat(level)}${'☆'.repeat(3-level)}\n${how}\n${SITE}`
+ return `P.U.S.H. Pool Daily #${n} ${'★'.repeat(level)}${'☆'.repeat(3-level)}\n${how}\n${SITE}`
 }
 
 export const dailySolved=progress=>Object.entries(progress||{}).filter(([id,r])=>isDaily(id)&&r?.done).length

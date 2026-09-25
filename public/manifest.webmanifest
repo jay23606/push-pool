@@ -1,7 +1,7 @@
 {
-  "name": "Pool Masters",
-  "short_name": "Pool",
-  "description": "Multiplayer pool with rooms, chat, calls and rankings.",
+  "name": "P.U.S.H. Pool",
+  "short_name": "PUSH",
+  "description": "Multiplayer pool with points, powers, items and hazards.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
