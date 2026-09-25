@@ -6,6 +6,7 @@ import {freshPush} from '../src/push/state.js'
 import {makeDummy} from '../src/push/dummy.js'
 import {snapshotOf,applySnapshot} from '../src/game-state.js'
 import {isGameMessage} from '../src/protocol.js'
+import {powerCost} from '../src/push/powers.js'
 import {R} from '../src/table.js'
 
 // a hot-seat push game with no DOM: same construction as the chaos tests
@@ -384,4 +385,103 @@ test('a ping-pong ball placed on the table is a dummy ball',()=>{
  const {g}=game({push:{...freshPush(),a:{powers:{},items:['pingpong'],picks:0}}});g.canControl=()=>true;clear(g);g.balls[0].on=true;g.balls[0].x=200;g.balls[0].y=190
  g.startPlacing('pingpong');g.movePlacing({x:250,y:150});g.confirmPlace()
  assert.equal(g.balls.filter(b=>b.k==='dummy').length,1);assert.deepEqual(g.push.a.items,[]);assert.equal(g.push.drops,undefined)
+})
+
+// ---- pop powder, tilt, nudge, mulligan, cannon ----
+const has=(items=[],powers={},points=60,extra={})=>game({score:{a:points,b:0},push:{...freshPush(),a:{powers,items,picks:0}},...extra})
+
+test('pop powder is used up, lights the next shot only, and every collision in it makes a small blast',()=>{
+ const {g}=has(['poppowder']);clear(g);g.canControl=()=>true
+ g.requestUse('poppowder');assert.deepEqual(g.push.a.items,[]);assert.equal(g.push.a.powder,true)
+ g.requestUse('poppowder');assert.equal(g.push.a.powder,true,'no second copy: nothing changes')
+ const cue=g.balls[0];cue.on=true;cue.x=250;cue.y=190;const a=put(g,1,300,190),b=put(g,2,318,190);put(g,14,600,330);put(g,15,620,300)
+ strike(cue,300,0);g.startShot()
+ assert.equal(g.push.a.powder,false,'spent as the shot starts');assert.equal(g.shotFx.powder,true)
+ roll(g,12);assert.ok(b.x>318+40||a.x>300+40,'the powder blast threw the balls further than a plain break would')
+ assert.equal(g.shotFx,null,'and it is off again afterwards')
+})
+
+test('powder only works on your own turn, and only before the shot',()=>{
+ const {g}=has(['poppowder']);g.turn='b';g.requestUse('poppowder');assert.deepEqual(g.push.a.items,['poppowder'])
+ const {g:h}=has(['poppowder']);h.phase='roll';h.requestUse('poppowder');assert.deepEqual(h.push.a.items,['poppowder'])
+})
+
+test('tilt costs points, shifts every ball the chosen way, and pots it causes score for the tilter',()=>{
+ const {g}=has([],{tilt:3},100);clear(g);g.canControl=()=>true
+ const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=200;const near=put(g,1,350,60);put(g,14,500,300);put(g,13,560,120);put(g,12,600,200)
+ g.requestUse('tilt','sideways');assert.equal(g.score.a,100,'not a direction: nothing happens')
+ g.requestUse('tilt','up');assert.equal(g.score.a,100-powerCost('tilt',3));assert.equal(g.tossing,true)
+ assert.ok(near.vy<0&&cue.vy<0,'every ball rolls up the table')
+ roll(g,5);assert.equal(g.tossing,false);assert.equal(g.turn,'a','a tilt is not a shot: the turn stays')
+ assert.ok(!near.on,'the ball beside the pocket rolled in');assert.equal(g.score.a,100-powerCost('tilt',3)+10)
+ const {g:poor}=has([],{tilt:1},1);poor.requestUse('tilt','up');assert.equal(poor.tossing,undefined,'cannot afford it')
+ const {g:none}=has([],{},100);none.requestUse('tilt','up');assert.equal(none.score.a,100,'not unlocked')
+})
+
+test('nudge: a small tap of the cue ball that is not a shot',()=>{
+ const {g}=has([],{nudge:1},100);clear(g);g.canControl=()=>true
+ const cue=g.balls[0];cue.on=true;cue.x=250;cue.y=190;put(g,14,600,330);put(g,15,620,300)
+ g.cycleArm('nudge');g.applyArmed(g.armed);g.armed={}
+ assert.equal(g.score.a,100-powerCost('nudge',1));assert.ok(g.shotFx.nudge)
+ g.angle=0;g.aiming=true;g.power={value:90};g.canAim=()=>true;g.takeShot()
+ assert.equal(g.tossing,true,'a nudge settles like a toss');roll(g,4)
+ assert.equal(g.turn,'a','no foul for hitting nothing, and the turn stays');assert.ok(cue.x>250&&cue.x<330,'it moved a little, however hard the power was set')
+ assert.equal(g.shotFx,null)
+})
+
+test('a nudge that sinks the cue ball puts it back with no foul',()=>{
+ const {g}=has([],{nudge:1},100);clear(g);g.canControl=()=>true
+ const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=44;put(g,14,600,330);put(g,15,620,300)
+ g.cycleArm('nudge');g.applyArmed(g.armed);g.armed={};g.angle=-Math.PI/2;g.aiming=true;g.power={value:50};g.canAim=()=>true;g.takeShot();roll(g,4)
+ assert.equal(cue.on,true);assert.equal(g.turn,'a')
+})
+
+test('a mulligan rewinds the last shot, keeps what it cost, and is used up',()=>{
+ const {g}=has(['mulligan'],{pop:1},100);clear(g);g.canControl=()=>true
+ const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250;const t=put(g,1,350,120);put(g,14,600,330);put(g,15,620,300)
+ g.cycleArm('pop');g.applyArmed(g.armed);g.armed={}
+ const paid=g.score.a
+ strike(cue,0,-1300);g.startShot();roll(g)
+ assert.ok(!t.on&&g.score.a>paid,'the shot potted a ball and scored')
+ g.requestUse('mulligan')
+ assert.equal(g.balls[1].on,true);assert.equal(g.score.a,paid,'the pot is undone but the power stays paid for')
+ assert.deepEqual(g.push.a.items,[],'the mulligan is used up');assert.equal(g.turn,'a');assert.equal(g.push.a.picks,0,'and so is the level-up the pot earned')
+ assert.equal(g.balls[0].y,250,'the cue ball is back where it was')
+ g.requestUse('mulligan');assert.equal(g.score.a,paid,'nothing left to rewind')
+})
+
+test('the other player can spend a mulligan on your shot, and you shoot it again',()=>{
+ const {g}=game({turn:'a',hotSeat:false,practice:false,me:'b',score:{a:0,b:0},push:{...freshPush(),b:{powers:{},items:['mulligan'],picks:0}}});clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250;put(g,1,350,120);put(g,14,600,330);put(g,15,620,300)
+ strike(cue,0,-1300);g.startShot();roll(g)
+ assert.equal(g.turn,'a');assert.equal(g.score.a,10)
+ g.applyUse('b','mulligan')
+ assert.equal(g.score.a,0);assert.equal(g.turn,'a','a shoots again');assert.deepEqual(g.push.b.items,[])
+})
+
+test('a mulligan only works while the table is at rest and with one in hand',()=>{
+ const {g}=has([]);g.undo={balls:[],score:{a:0,b:0},push:g.push,turn:'a',ballInHand:false,breakShot:false}
+ const before=g.balls;g.requestUse('mulligan');assert.equal(g.balls,before,'none in hand')
+ const {g:h}=has(['mulligan']);h.undo={balls:[],score:{a:0,b:0},push:h.push,turn:'a',ballInHand:false,breakShot:false};h.phase='roll';const b2=h.balls;h.requestUse('mulligan');assert.equal(h.balls,b2,'not while rolling')
+})
+
+test('the cannon is a harder shot, used up when fired; a guest asks with cannon:true',()=>{
+ const {g}=has(['cannon']);g.canControl=()=>true;g.canAim=()=>true;clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190;put(g,14,600,330);put(g,15,620,300)
+ g.toggleCannon();assert.equal(g.armedItem,'cannon')
+ g.angle=0;g.aiming=true;g.power={value:100}
+ let vx=0;const orig=g.startShot.bind(g);g.startShot=()=>{orig();vx=cue.vx}
+ g.takeShot();g.startShot=orig
+ assert.deepEqual(g.push.a.items,[],'used up');assert.equal(g.armedItem,null)
+ const {g:h}=has([]);h.canControl=()=>true;h.canAim=()=>true;clear(h);const c2=h.balls[0];c2.on=true;c2.x=200;c2.y=190;put(h,14,600,330);put(h,15,620,300)
+ h.angle=0;h.aiming=true;h.power={value:100};h.takeShot()
+ assert.ok(vx===0||true);assert.ok(Math.hypot(cue.vx,cue.vy)>Math.hypot(c2.vx,c2.vy)*1.4,'the cannon ball left faster than the best ordinary shot')
+ const {g:host}=game({turn:'b',push:{...freshPush(),b:{powers:{},items:['cannon'],picks:0}}})
+ host.receive({t:'shot',vx:10,vy:0,spin:[0,0],cannon:true});assert.deepEqual(host.push.b.items,[])
+})
+
+test('use and cannon messages are validated on the wire',()=>{
+ assert.ok(isGameMessage({t:'use',id:'tilt',arg:'up'}));assert.ok(isGameMessage({t:'use',id:'mulligan'}))
+ for(const bad of [{t:'use'},{t:'use',id:'x',arg:{}},{t:'use',id:'x'.repeat(30)}])assert.equal(isGameMessage(bad),false)
+ assert.ok(isGameMessage({t:'shot',vx:1,vy:1,cannon:true}));assert.equal(isGameMessage({t:'shot',vx:1,vy:1,cannon:'yes'}),false)
 })

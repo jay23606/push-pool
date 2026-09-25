@@ -15,7 +15,7 @@ function strip(p){const {points:_points,...rest}=p;return rest}
 const fin=n=>typeof n==='number'&&Number.isFinite(n)
 const validPlayer=p=>p&&typeof p==='object'&&Number.isInteger(p.picks)&&p.picks>=0&&p.picks<=99
  &&p.powers&&typeof p.powers==='object'&&Object.entries(p.powers).every(([id,l])=>POWERS[id]&&Number.isInteger(l)&&l>=1&&l<=MAX_LEVEL)
- &&Array.isArray(p.items)&&p.items.length<=99&&p.items.every(id=>ITEMS[id])
+ &&Array.isArray(p.items)&&p.items.length<=99&&p.items.every(id=>ITEMS[id])&&(p.powder===undefined||typeof p.powder==='boolean')
 const validOffer=o=>o&&typeof o==='object'&&POWERS[o.id]&&Number.isInteger(o.level)&&o.level>=1&&o.level<=MAX_LEVEL
 const validSpawn=s=>s&&typeof s==='object'&&SPAWN_TYPES[s.type]&&Number.isInteger(s.ttl)&&s.ttl>=0&&s.ttl<=9
  &&['x','y'].every(k=>s[k]===undefined||fin(s[k]))

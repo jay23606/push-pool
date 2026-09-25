@@ -6,14 +6,14 @@ import {airborne} from './physics.js'
 import {drawTwist,blast,wellPull,bonusPocket,twistName} from './chaos.js'
 import {collectPickups,afterShot,choosePower,payPower,payArmed} from './push/logic.js'
 import {renderPushPanel} from './push/panel.js'
-import {powerCost,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS} from './push/powers.js'
+import {powerCost,powerLevel,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS,TILT_IMPULSE,NUDGE_POWER,CANNON_MULT,POWDER_POPS,POWDER_RADIUS_R,POWDER_FORCE} from './push/powers.js'
 import {placeItem,whyNotPlace,isPlaceable,MINE_BLAST_R,MINE_BLAST_POWER} from './push/placing.js'
 import {isTossable,landing,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS} from './push/toss.js'
 import {DUMMY_POINTS,scatterDummies,scatterAround,makeDummy,nextDummyId} from './push/dummy.js'
 import {PIGGY_GEMS,PIGGY_R,PIGGY_LIFE,CLUSTER_SIZE} from './push/toss.js'
 import {rollGem} from './push/items.js'
 import {stepHazards,PSWITCH_GEM} from './push/hazards.js'
-import {giveItem} from './push/economy.js'
+import {giveItem,useItem} from './push/economy.js'
 import {freeSpot} from './push/logic-spots.js'
 import {ITEMS} from './push/items.js'
 import {newRun as newRogueRun,judge as judgeRogue,choose as chooseRogue,advance as advanceRogue,offer as offerRogue,POCKET_BOOST} from './rogue.js'
@@ -176,7 +176,7 @@ export class PoolGame{
  setSpectator(v){this.spectator=Boolean(v);this.draw()}
  canControl(){return !this.rogueWait&&!this.spectator&&!this.replay&&this.ready&&this.phase==='aim'&&this.turn===this.me&&!this.over&&this.balls[0]?.on}
  canAim(){return this.canControl()&&!this.ballInHand}
- takeShot(){if(!this.canAim()||!this.aiming)return;this.placing=null;if(!this.drill&&this.eightGame()&&this.guide().hit?.k==='eight'&&!this.canCallEight()){this.calledPocket=null;this.aiming=false;this.flash(this.eightBlockedMessage());return}const s=shotSpeed(+this.power.value),vx=Math.cos(this.angle)*s,vy=Math.sin(this.angle)*s,spin=[this.spin.a,this.spin.b];if(!this.drill&&!this.chal&&!(this.jumpAllowed()&&this.jumpOn))this.lastCoach={before:this.balls.map(b=>({...b})),shot:{angle:this.angle,power:+this.power.value,spin},group:this.group(this.me),mode:this.mode,player:this.me,breakShot:this.breakShot,result:null,replays:null};this.aiming=false;this.sfx?.cue(+this.power.value/100);
+ takeShot(){if(!this.canAim()||!this.aiming)return;this.placing=null;if(!this.drill&&this.eightGame()&&this.guide().hit?.k==='eight'&&!this.canCallEight()){this.calledPocket=null;this.aiming=false;this.flash(this.eightBlockedMessage());return}const cannonOn=this.mode==='push'&&this.armedItem==='cannon'&&Boolean(this.push?.[this.turn]?.items.includes('cannon')),s=shotSpeed(+this.power.value)*(cannonOn?CANNON_MULT:1),vx=Math.cos(this.angle)*s,vy=Math.sin(this.angle)*s,spin=[this.spin.a,this.spin.b];if(!this.drill&&!this.chal&&!(this.jumpAllowed()&&this.jumpOn))this.lastCoach={before:this.balls.map(b=>({...b})),shot:{angle:this.angle,power:+this.power.value,spin},group:this.group(this.me),mode:this.mode,player:this.me,breakShot:this.breakShot,result:null,replays:null};this.aiming=false;this.sfx?.cue(+this.power.value/100);
   // The pocket called for the 8 is read now, while the player is still aiming: startShot() begins the roll,
   // and calling is only allowed while aiming. Read after it, a guest always sent no call at all, and the host
   // judged every 8 a guest potted as a loss.
@@ -186,13 +186,18 @@ export class PoolGame{
   if(jump&&this.host&&this.mode==='push')this.payJump()
   const armed=this.mode==='push'&&Object.keys(this.armed||{}).length?{...this.armed}:null;this.armed={}
   if(armed&&this.host)this.applyArmed(armed)
-  this.startShot();if(this.host)strike(this.balls[0],vx,vy,spin[0],spin[1],jump);else this.send({t:'shot',vx,vy,spin,place:this.pendingPlace,called,...(jump?{jump:true}:{}),...(armed?{powers:armed}:{})});this.pendingPlace=null}
- startShot(){if(this.chal&&this.chal.startedAt==null)this.chal=startClock(this.chal,performance.now());this.shots??={a:0,b:0};this.shots[this.turn]=(this.shots[this.turn]||0)+1;this.placed=false;this.potted=[];this.firstObjectPotted=null;this.scratch=false;this.firstHit=null;this.before=this.group()?this.remaining(this.group()):null;this.lowest=lowestBall(this.balls);this.railHit=false;this.pocketOf={};this.railBalls=new Set();this.cueRailFirst=false;this.phase='roll';this.noteRecording(true)}
+  this.armedItem=null
+  if(cannonOn&&this.host)this.payCannon()
+  if(this.shotFx?.nudge&&this.host){this.doNudge(vx,vy,spin);this.pendingPlace=null;return}
+  this.startShot();if(this.host)strike(this.balls[0],vx,vy,spin[0],spin[1],jump);else this.send({t:'shot',vx,vy,spin,place:this.pendingPlace,called,...(jump?{jump:true}:{}),...(armed?{powers:armed}:{}),...(cannonOn?{cannon:true}:{})});this.pendingPlace=null}
+ startShot(){if(this.chal&&this.chal.startedAt==null)this.chal=startClock(this.chal,performance.now());this.shots??={a:0,b:0};this.shots[this.turn]=(this.shots[this.turn]||0)+1;this.placed=false;this.potted=[];this.firstObjectPotted=null;this.scratch=false;this.firstHit=null;this.before=this.group()?this.remaining(this.group()):null;this.lowest=lowestBall(this.balls);this.railHit=false;this.pocketOf={};this.railBalls=new Set();this.cueRailFirst=false;this.phase='roll';this.noteRecording(true)
+  if(this.mode==='push')this.shotStarted()}
  receive(m){
   if(!isGameMessage(m))return
   if(m.t==='table'&&!this.host)return this.onTable?.(m)
   if(m.t==='next-rack'&&this.host)return this.newRack()
   if(m.t==='pick'&&this.host&&this.turn==='b')return this.applyPick('b',m.id)
+  if(m.t==='use'&&this.host)return this.applyUse('b',m.id,m.arg)
   if(m.t==='toss'&&this.host&&this.turn==='b')return this.applyToss('b',m.item,{x:m.x,y:m.y})
   if(m.t==='place'&&this.host&&this.turn==='b')return this.applyPlace('b',m.item,{x:m.x,y:m.y,rot:m.rot})
   if(m.t==='state'&&!this.host)return this.receiveState(m)
@@ -243,6 +248,8 @@ export class PoolGame{
   const jump=Boolean(m.jump)&&this.jumpAllowed()
   if(jump&&this.mode==='push')this.payJump()
   if(this.mode==='push'&&m.powers)this.applyArmed(m.powers)
+  if(this.mode==='push'&&m.cannon&&this.push?.[this.turn]?.items.includes('cannon'))this.payCannon()
+  if(this.shotFx?.nudge){this.doNudge(m.vx,m.vy,m.spin||[0,0]);return}
   this.startShot();strike(this.balls[0],m.vx,m.vy,m.spin?.[0]||0,m.spin?.[1]||0,jump)
  }
  // Hot-seat: two people share one device. Whoever's turn it is is "me" -- every rule and every
@@ -479,7 +486,7 @@ export class PoolGame{
   this.score={...this.score,[shooter]:(this.score[shooter]||0)+real.length*PUSH_POT+dummies.length*DUMMY_POINTS}
   // a cue ball your own blast pocketed comes back where it was: no foul, the toss was not a shot
   if(!cue.on){cue.on=true;cue.x=this.tossCue.x;cue.y=this.tossCue.y}
-  this.tossing=false;this.balls.forEach(clearMotion);this.phase='aim'
+  this.tossing=false;this.shotFx=null;this.balls.forEach(clearMotion);this.phase='aim'
   const target=this.scoreTarget||targetFor(this.mode)
   if(this.score[shooter]>=target){this.onShotResult?.({shooter,potted:this.potted.map(b=>b.n),foul:false,winner:shooter});this.finish(shooter);this.sync();return}
   if(this.balls.filter(b=>b.on&&b.k!=='cue'&&b.k!=='dummy').length<=1)this.reRack()
@@ -579,6 +586,61 @@ export class PoolGame{
   const fx=this.shotFx;if(!fx?.pop||(this.pops||0)>=MAX_POPS)return
   this.pops=(this.pops||0)+1;blast(this.balls,this.balls[0],{radius:POP_RADIUS_R*R,power:fx.pop.force})
  }
+ // Pop powder lights the next shot, and every shot leaves a snapshot behind for a Mulligan (taken after the powers were paid for,
+ // so a rewind never gives back points or items already spent).
+ shotStarted(){
+  const me=this.turn,mine=this.push?.[me]
+  if(mine?.powder){this.shotFx={...this.shotFx,powder:true};this.powders=0;this.push={...this.push,[me]:{...mine,powder:false}}}
+  this.undo=JSON.parse(JSON.stringify({balls:this.balls,score:this.score,push:this.push,turn:this.turn,ballInHand:this.ballInHand,breakShot:this.breakShot}))
+ }
+ powderPop(a,b){
+  if((this.powders||0)>=POWDER_POPS)return
+  this.powders=(this.powders||0)+1;blast(this.balls,{x:(a.x+b.x)/2,y:(a.y+b.y)/2},{radius:POWDER_RADIUS_R*R,power:POWDER_FORCE})
+ }
+ // Things done from the panel that are not a shot: the host does them, a guest asks (t:'use').
+ requestUse(id,arg){
+  const me=this.hotSeat?this.turn:this.me
+  if(this.mode!=='push'||this.spectator||this.replay)return
+  if(this.host)this.applyUse(me,id,arg);else this.send({t:'use',id,arg})
+ }
+ applyUse(player,id,arg){
+  if(!this.push||this.tossing||this.phase!=='aim'||this.over)return
+  if(id==='mulligan')return this.applyMulligan(player)
+  if(this.turn!==player)return
+  if(id==='poppowder'){
+   const mine=this.push[player],next=useItem(mine,'poppowder','before');if(next===mine)return
+   this.push={...this.push,[player]:{...next,powder:true}};this.flash('Pop powder · the next shot');this.sync()
+  }else if(id==='tilt'){
+   const level=this.push[player].powers.tilt||0;if(!level)return
+   const dir={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[arg];if(!dir)return
+   const r=payPower(this.push,this.score,player,'tilt',level,'before');if(!r.ok)return
+   this.score=r.score
+   const k=powerLevel('tilt',level).shift*TILT_IMPULSE
+   this.tossStart();for(const b of this.balls)if(b.on){b.vx+=dir[0]*k;b.vy+=dir[1]*k}
+   this.flash('Tilt');this.sync()
+  }
+ }
+ // A Mulligan takes the table back to how it was before the last shot, whoever took it. What that shot cost stays paid,
+ // and the Mulligan is used up. Whoever shot it shoots it again.
+ applyMulligan(user){
+  const u=this.undo;if(!u||!this.push[user].items.includes('mulligan'))return
+  this.balls=u.balls.map(b=>({...b}));this.score=u.score;this.turn=u.turn;this.ballInHand=u.ballInHand;this.breakShot=u.breakShot
+  this.push={...u.push,[user]:useItem(u.push[user],'mulligan','after')};this.undo=null;this.shotFx=null
+  this.syncObstacles();this.flash('Mulligan · the shot is rewound');this.sync()
+  if(this.practice&&!this.hotSeat&&!this.over&&this.turn==='b')setTimeout(()=>this.aiShot(),650)
+ }
+ // A nudge is a small tap of the cue ball that is not a shot: no foul, and the turn stays with you.
+ doNudge(vx,vy,spin){
+  const cue=this.balls[0],len=Math.hypot(vx,vy)||1,speed=shotSpeed(NUDGE_POWER*this.shotFx.nudge.reach)
+  const {nudge:_n,...rest}=this.shotFx;this.shotFx=Object.keys(rest).length?rest:null
+  this.tossStart();strike(cue,vx/len*speed,vy/len*speed,spin[0]||0,spin[1]||0,false)
+ }
+ payCannon(){this.push={...this.push,[this.turn]:useItem(this.push[this.turn],'cannon','before')};this.flash('CANNON!')}
+ toggleCannon(){
+  const me=this.hotSeat?this.turn:this.me
+  if(this.mode!=='push'||!this.canControl()||this.turn!==me||!this.push[me].items.includes('cannon'))return
+  this.armedItem=this.armedItem==='cannon'?null:'cannon'
+ }
  payJump(){
   const r=payPower(this.push,this.score,this.turn,'jump',1,'before')
   if(r.ok){this.score=r.score;this.flash('Jump · -'+powerCost('jump',1))}
@@ -615,6 +677,7 @@ export class PoolGame{
     if(!this.firstHit){if(a.k==='cue')this.firstHit=b;else if(b.k==='cue')this.firstHit=a}
     if(this.fx&&this.fx.type==='bomb'&&!this.fx.spent&&(a.n===this.fx.n||b.n===this.fx.n))this.explode()
     if(this.shotFx&&(a.k==='cue'||b.k==='cue'))this.popped()
+    if(this.shotFx?.powder)this.powderPop(a,b)
    }
   }}
  pottedMessage(b){
@@ -684,6 +747,7 @@ export class PoolGame{
   if(this.chal)return this.resolveChallenge()
   const shooter=this.turn
   const v=judgeShot(this)
+  this.shotFx=null      // whatever was armed for this shot is spent, however it ends
   if(v.respotNine)this.respotNine(v.respotBall||9)
   if(v.score){this.score=v.score;this.scoreMessage(v,shooter);if(v.rerack)this.reRack()}
   if(v.winner){this.onShotResult?.({shooter,potted:this.potted.map(b=>b.n),foul:false,winner:v.winner});this.finish(v.winner);this.phase='aim';this.sync();return}

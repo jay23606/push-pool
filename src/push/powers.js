@@ -18,7 +18,11 @@ export const POWERS={
 }
 // The powers you switch on before a shot, and pay for when you take it. Each has a working effect in the game;
 // the rest of the catalogue is still being built. (Jump has its own button.)
-export const ARMABLE=['pop','stink','cute']
+export const ARMABLE=['pop','stink','cute','nudge']
+export const TILT_IMPULSE=4          // a tilt of level shift n gives every ball n * this much speed
+export const NUDGE_POWER=4           // nudge levels tap the cue ball at this many percent power per level
+export const CANNON_MULT=1.7         // a cannon shot is this much harder than the hardest ordinary one
+export const POWDER_POPS=12,POWDER_RADIUS_R=3,POWDER_FORCE=260
 export const isArmable=id=>ARMABLE.includes(id)
 export const FIELD_RADIUS=70          // how far a stink or cute cue ball reaches
 export const POP_RADIUS_R=4            // a pop is a small blast: this many ball radii

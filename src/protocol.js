@@ -17,11 +17,12 @@ const expectedGroup=n=>n===0?'cue':n===8?'eight':n<8?'solid':'stripe'
 export function isGameMessage(m){
  if(!m||typeof m!=='object'||typeof m.t!=='string')return false
  if(m.t==='next-rack')return true
+ if(m.t==='use')return typeof m.id==='string'&&m.id.length<=20&&(m.arg===undefined||typeof m.arg==='string'&&m.arg.length<=10)
  if(m.t==='toss')return typeof m.item==='string'&&m.item.length<=20&&finite(m.x)&&finite(m.y)
  if(m.t==='place')return typeof m.item==='string'&&m.item.length<=20&&finite(m.x)&&finite(m.y)&&finite(m.rot)
  if(m.t==='pick')return typeof m.id==='string'&&m.id.length<=20
  if(m.t==='table')return finite(m.size)&&typeof m.felt==='string'
- if(m.t==='shot')return finite(m.vx)&&finite(m.vy)&&(!m.spin||Array.isArray(m.spin)&&m.spin.every(finite))&&(m.jump===undefined||typeof m.jump==='boolean')&&(m.powers===undefined||validArmed(m.powers))
+ if(m.t==='shot')return finite(m.vx)&&finite(m.vy)&&(!m.spin||Array.isArray(m.spin)&&m.spin.every(finite))&&(m.jump===undefined||typeof m.jump==='boolean')&&(m.powers===undefined||validArmed(m.powers))&&(m.cannon===undefined||typeof m.cannon==='boolean')
  if(m.t!=='state'||!Array.isArray(m.b)||!player.has(m.turn)||!phase.has(m.phase)||!Number.isInteger(m.round))return false
  // A ball tuple is either the plain v1 shape (position only) or the v2 shape
  // with five more finite fields appended (velocity and spin) -- accepting

@@ -2,6 +2,7 @@ import {POWERS,powerCost} from './powers.js'
 import {ITEMS} from './items.js'
 import {isPlaceable} from './placing.js'
 import {isTossable} from './toss.js'
+import {ITEMS as ITEM_DEFS} from './items.js'
 import {isArmable} from './powers.js'
 
 // The P.U.S.H. Pool side panel: your points, powers and items, and the level-up choice when one is owed. It is plain DOM
@@ -16,7 +17,7 @@ export function pushPanelState(game){
  const mine=push[me]
  return {me,points:game.score?.[me]||0,powers:mine.powers,items:mine.items,picks:mine.picks,
   offers:game.turn===me&&!game.spectator?push.offers:null,
-  armed:game.armed||{},canUse:game.turn===me&&!game.spectator&&game.phase==='aim'&&!game.ballInHand,placing:game.placing?.item||null}
+  armed:game.armed||{},armedItem:game.armedItem||null,powder:Boolean(mine.powder),canMull:game.phase==='aim'&&Boolean(game.undo)&&!game.spectator&&!game.tossing,canUse:game.turn===me&&!game.spectator&&game.phase==='aim'&&!game.ballInHand,placing:game.placing?.item||null}
 }
 
 export function renderPushPanel(game){
@@ -58,12 +59,21 @@ export function renderPushPanel(game){
  if(st.items.length){
   const row=el('div','push-row');row.append(el('span','push-label','Items'))
   for(const id of st.items){
+   if(id==='mulligan'&&st.canMull){const b=el('button','push-chip item use','Mulligan');b.type='button';b.title=ITEM_DEFS.mulligan.blurb;b.onclick=()=>game.requestUse('mulligan');row.append(b);continue}
+   if(id==='poppowder'&&st.canUse){const b=el('button','push-chip item use','Pop powder');b.type='button';b.title=ITEM_DEFS.poppowder.blurb;b.onclick=()=>game.requestUse('poppowder');row.append(b);continue}
+   if(id==='cannon'&&st.canUse){const b=el('button','push-chip item use'+(st.armedItem==='cannon'?' on':''),st.armedItem==='cannon'?'Cannon armed':'Cannon');b.type='button';b.title=ITEM_DEFS.cannon.blurb;b.onclick=()=>game.toggleCannon();row.append(b);continue}
    if((isPlaceable(id)||isTossable(id))&&st.canUse){
     const b=el('button','push-chip item use'+(st.placing===id?' on':''),(st.placing===id?'Aiming · ':isTossable(id)?'Toss · ':'Place · ')+ITEMS[id].name);b.type='button'
     b.onclick=()=>st.placing===id?game.cancelPlacing():game.startPlacing(id)
     row.append(b)
    }else row.append(el('span','push-chip item',ITEMS[id].name))
   }
+  p.append(row)
+ }
+ if(st.powder)p.append(el('div','push-h','Pop powder is on for your next shot'))
+ if((st.powers.tilt||0)&&st.canUse){
+  const row=el('div','push-row');row.append(el('span','push-label','Tilt'))
+  for(const [dir,label] of [['up','↑'],['left','←'],['right','→'],['down','↓']]){const b=el('button','push-chip use',label);b.type='button';b.title='Tilt the table: every ball rolls '+dir;b.onclick=()=>game.requestUse('tilt',dir);row.append(b)}
   p.append(row)
  }
 }
