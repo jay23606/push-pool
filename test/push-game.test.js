@@ -3,10 +3,11 @@ import {PoolGame} from '../src/pool.js'
 import {strike} from '../src/physics.js'
 import {rack} from '../src/rules.js'
 import {freshPush} from '../src/push/state.js'
-import {makeDummy,makeRutabaga} from '../src/push/dummy.js'
+import {makeDummy,makeRutabaga,massOf,HEAVY_MASS,LIGHT_MASS} from '../src/push/dummy.js'
+import {rollItem} from '../src/push/items.js'
 import {snapshotOf,applySnapshot} from '../src/game-state.js'
 import {isGameMessage} from '../src/protocol.js'
-import {powerCost} from '../src/push/powers.js'
+import {powerCost,CANNON_MASS} from '../src/push/powers.js'
 import {payArmed} from '../src/push/logic.js'
 import {R} from '../src/table.js'
 
@@ -155,10 +156,10 @@ test('a guest asks the host to place, and only the player whose turn it is gets 
 const owning=(powers,points=100)=>game({score:{a:points,b:0},push:{...freshPush(),a:{powers,items:[],picks:0}}})
 
 test('arming steps a power through the levels you own and back off; only armable powers, only yours',()=>{
- const {g}=owning({pop:2,guide:1});g.canControl=()=>true
+ const {g}=owning({pop:2,jump:1});g.canControl=()=>true
  g.cycleArm('pop');assert.deepEqual(g.armed,{pop:1});g.cycleArm('pop');assert.deepEqual(g.armed,{pop:2})
  g.cycleArm('pop');assert.deepEqual(g.armed,{},'past your level it switches off')
- g.cycleArm('guide');g.cycleArm('stink');assert.deepEqual(g.armed,{},'not armable / not owned')
+ g.cycleArm('jump');g.cycleArm('stink');assert.deepEqual(g.armed,{},'not armable / not owned')
 })
 
 test('an armed power is paid for when the shot is taken, at the level chosen',()=>{
@@ -587,4 +588,56 @@ test('push8: hitting a dummy first is not a foul, and hitting only a dummy still
 test('push8 shows the points panel and the push controls, and its powers work',()=>{
  const {g}=game({mode:'push8',score:{a:60,b:0},groups:{a:'solid',b:'stripe'},balls:rack('push8'),push:{...freshPush(),a:{powers:{pop:1},items:[],picks:0}}})
  g.canControl=()=>true;g.cycleArm('pop');assert.deepEqual(g.armed,{pop:1});g.applyArmed(g.armed,{});assert.equal(g.score.a,60-powerCost('pop',1))
+})
+
+// ---- cannon, cannon ball, guide, spin, cannon start ----
+test('a cannon shot sends the cue ball out heavy: it plows a rack apart and the extra mass ends with the shot',()=>{
+ const {g}=has(['cannon']);g.canControl=()=>true;g.canAim=()=>true;clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190;const a=put(g,1,300,190);put(g,14,600,330);put(g,15,620,300)
+ g.toggleCannon();g.angle=0;g.aiming=true;g.power={value:60};g.takeShot()
+ assert.equal(cue.m,CANNON_MASS,'heavy for the shot');assert.deepEqual(g.push.a.items,[])
+ roll(g,4);assert.equal(cue.m,undefined,'and only for the shot')
+ assert.ok(a.x>420||!a.on,'the target was sent a long way, further than an ordinary cue ball could')
+ const {g:plain}=has([]);plain.canControl=()=>true;plain.canAim=()=>true;clear(plain)
+ const c2=plain.balls[0];c2.on=true;c2.x=200;c2.y=190;const a2=put(plain,1,300,190);put(plain,14,600,330);put(plain,15,620,300)
+ plain.angle=0;plain.aiming=true;plain.power={value:60};plain.takeShot();roll(plain,4)
+ assert.ok(a.x>a2.x||!a.on,'harder and heavier than a plain shot')
+})
+
+test('a cannon ball and a ping-pong ball are placed as heavy and light dummy balls',()=>{
+ const {g}=has(['cannonball','pingpong']);g.canControl=()=>true;clear(g);g.balls[0].on=true;g.balls[0].x=200;g.balls[0].y=190
+ g.startPlacing('cannonball');g.movePlacing({x:250,y:150});g.confirmPlace()
+ g.startPlacing('pingpong');g.movePlacing({x:260,y:230});g.confirmPlace()
+ const d=g.balls.filter(b=>b.k==='dummy');assert.equal(d.length,2)
+ assert.ok(d.some(b=>massOf(b)===HEAVY_MASS)&&d.some(b=>massOf(b)===LIGHT_MASS));assert.deepEqual(g.push.a.items,[])
+})
+
+test('a cluster breaks into light ping-pong balls',()=>{
+ const {g}=tossing(['cluster']);clear(g);g.balls[0].on=true;g.balls[0].x=200;g.balls[0].y=190;put(g,14,600,330)
+ g.applyToss('a','cluster',{x:320,y:190});const d=g.balls.filter(b=>b.k==='dummy');assert.equal(d.length,5);assert.ok(d.every(b=>massOf(b)===LIGHT_MASS))
+})
+
+test('guide adds bounces to the aiming line, and spin makes the spin stronger, only when armed and paid for',()=>{
+ const {g}=has([],{guide:2});g.canControl=()=>true;g.canAim=()=>true;clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190;g.angle=0;g.aiming=true
+ const before=g.guide().banks.length;g.cycleArm('guide');g.cycleArm('guide')
+ assert.ok(g.guide().banks.length>before,'more bounces of the line once guide is armed at level two')
+ const spinOf=arm=>{
+  const {g:h}=has([],{spin:3});h.canControl=()=>true;h.canAim=()=>true;clear(h);put(h,14,600,330);put(h,15,620,300)
+  const c=h.balls[0];c.on=true;c.x=200;c.y=190;h.angle=0;h.aiming=true;h.power={value:50};h.spin={a:.3,b:.2}
+  if(arm){h.cycleArm('spin');h.cycleArm('spin');h.cycleArm('spin');assert.equal(h.armed.spin,3)}
+  const paid=h.score.a;h.takeShot();return {mag:Math.hypot(c.wx,c.wy,c.wz),spent:paid-h.score.a}
+ }
+ const plain=spinOf(false),armed=spinOf(true)
+ assert.ok(armed.mag>plain.mag*1.5,'stronger spin');assert.equal(plain.spent,0);assert.equal(armed.spent,powerCost('spin',3),'and paid for')
+})
+
+test('the cannon house rule gives everyone a cannon at the start of each rack',()=>{
+ const {g}=game({house:{race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false,cannon:true}});g.resetRack()
+ assert.deepEqual(g.push.a.items,['cannon']);assert.deepEqual(g.push.b.items,['cannon'])
+ const {g:h}=game();h.resetRack();assert.deepEqual(h.push.a.items,[])
+})
+
+test('an unbuilt item is never dropped',()=>{
+ for(let i=0;i<3000;i++)assert.notEqual(rollItem(Math.random),'roller')
 })

@@ -18,12 +18,13 @@ export const POWERS={
 }
 // The powers you switch on before a shot, and pay for when you take it. Each has a working effect in the game;
 // the rest of the catalogue is still being built. (Jump has its own button.)
-export const ARMABLE=['pop','stink','cute','nudge','trail']
+export const ARMABLE=['pop','stink','cute','nudge','trail','guide','spin']
 // The trail: the cue ball drops a patch every TRAIL_STEP units, up to the level's length, and the patches last two turns.
 export const TRAIL_VARIANTS=['ice','electric','sand','plasma','stone']
 export const TRAIL_STEP=14,TRAIL_R=16,TRAIL_LIFE=2,TRAIL_MAX=20
 export const TILT_IMPULSE=4          // a tilt of level shift n gives every ball n * this much speed
 export const NUDGE_POWER=4           // nudge levels tap the cue ball at this many percent power per level
+export const CANNON_MASS=5
 export const CANNON_MULT=1.7         // a cannon shot is this much harder than the hardest ordinary one
 export const POWDER_POPS=12,POWDER_RADIUS_R=3,POWDER_FORCE=260
 export const isArmable=id=>ARMABLE.includes(id)

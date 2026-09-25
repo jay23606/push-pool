@@ -293,7 +293,7 @@ test('placeable items turn into the obstacle records the physics already knows',
  const tilted=shapeOf('wall',200,190,Math.PI/2);assert.ok(Math.abs(tilted[0].x1-tilted[0].x2)<1e-9,'rotated a quarter turn it stands upright')
  assert.equal(shapeOf('cube',200,190,.4).length,4,'a cube is four walls')
  assert.equal(shapeOf('pillar',200,190)[0].t,'bumper')
- assert.deepEqual(PLACEABLE,['wall','cube','pillar','landmine','fan','hole','pingpong']);assert.deepEqual(shapeOf('bomb',1,1),[])
+ assert.deepEqual(PLACEABLE,['wall','cube','pillar','landmine','fan','hole','pingpong','cannonball']);assert.deepEqual(shapeOf('bomb',1,1),[])
 })
 
 test('a placed wall really stops a ball: the physics treats it like any obstacle',()=>{
@@ -349,9 +349,9 @@ test('a malformed obstacle drops the state message',()=>{
 // ---- armed powers on the wire and in the logic ----
 import {payArmed} from '../src/push/logic.js'
 test('payArmed charges each power in turn and skips what cannot go through',()=>{
- const push=withPush({a:{powers:{pop:1,cute:2,guide:1},items:[],picks:0}})
- const r=payArmed(push,{a:100,b:0},'a',{pop:1,cute:2,guide:1,stink:1})
- assert.deepEqual(Object.keys(r.applied).sort(),['cute','pop'],'guide is not armable, stink is not owned')
+ const push=withPush({a:{powers:{pop:1,cute:2,jump:1},items:[],picks:0}})
+ const r=payArmed(push,{a:100,b:0},'a',{pop:1,cute:2,jump:1,stink:1})
+ assert.deepEqual(Object.keys(r.applied).sort(),['cute','pop'],'jump is not armable, stink is not owned')
  assert.equal(r.score.a,100-25-38);assert.equal(r.applied.cute.force,300)
  const tight=payArmed(push,{a:40,b:0},'a',{pop:1,cute:2})
  assert.deepEqual(Object.keys(tight.applied),['pop'],'the second is skipped once the first has been paid');assert.equal(tight.score.a,15)
@@ -506,7 +506,7 @@ test('fan, hole and ping-pong can be placed; a ping-pong ball is a drop, not an 
  for(const id of ['fan','hole','pingpong'])assert.equal(whyNotPlace(h,'a',id,{x:250,y:150,rot:0},c),null,id)
  const fan=placeItem(h,'a','fan',{x:250,y:150,rot:1},c);assert.equal(fan.obstacles[0].t,'fan');assert.equal(fan.obstacles[0].ttl,1);assert.equal(fan.obstacles[0].rot,1)
  const hole=placeItem(h,'a','hole',{x:250,y:150},c);assert.equal(hole.obstacles[0].t,'pit')
- const pp=placeItem(h,'a','pingpong',{x:250,y:150},c);assert.deepEqual(pp.drops,[{x:250,y:150}]);assert.equal((pp.obstacles||[]).length,0);assert.deepEqual(pp.a.items,['fan','hole'])
+ const pp=placeItem(h,'a','pingpong',{x:250,y:150},c);assert.deepEqual(pp.drops,[{x:250,y:150,kind:'light'}]);assert.equal((pp.obstacles||[]).length,0);assert.deepEqual(pp.a.items,['fan','hole'])
  assert.equal(whyNotPlace(h,'a','fan',{x:200+181,y:190,rot:0},c),'too-far')
 })
 
@@ -618,4 +618,26 @@ test('a dummy ball is never a wrong first hit under 8-ball rules, and never an A
  assert.equal(judgeShot({...g,firstHit:{k:'stripe',n:9}}).reason,'wrong-first')
  const balls=[cueAt(100,100),ball(1,200,100),makeDummy(100,300,100)]
  assert.deepEqual(legalTargets(balls,null,'push8').map(b=>b.n),[1])
+})
+
+// ---- mass: heavy and light balls ----
+import {massOf,makeLight,makeHeavy,HEAVY_MASS,LIGHT_MASS,LIGHT_BASE,HEAVY_BASE} from '../src/push/dummy.js'
+import {ballCollide} from '../src/physics.js'
+import {CANNON_MASS} from '../src/push/powers.js'
+
+test('masses come from the dummy id ranges, and an explicit mass wins',()=>{
+ assert.equal(massOf({k:'solid',n:3}),1);assert.equal(massOf({k:'cue',n:0}),1);assert.equal(massOf(makeDummy(100,0,0)),1)
+ assert.equal(massOf(makeLight([],0,0)),LIGHT_MASS);assert.equal(massOf(makeHeavy([],0,0)),HEAVY_MASS);assert.equal(massOf(makeRutabaga([],0,0)),1)
+ assert.equal(massOf({k:'cue',n:0,m:CANNON_MASS}),CANNON_MASS)
+ const lights=[];for(let i=0;i<10;i++)lights.push(makeLight(lights,i,0));assert.equal(new Set(lights.map(b=>b.n)).size,10);assert.ok(lights.every(b=>b.n>=LIGHT_BASE&&b.n<HEAVY_BASE))
+ assert.ok(isGameMessage(snap([makeHeavy([],50,50),makeLight([],80,80)])),'still ordinary dummies on the wire')
+})
+
+const two=(a,b)=>{const x={x:100,y:100,vx:300,vy:0,wx:0,wy:0,wz:0,z:0,...a},y={x:117,y:100,vx:0,vy:0,wx:0,wy:0,wz:0,z:0,...b};ballCollide(x,y);return [x,y]}
+test('collisions: two ordinary balls behave exactly as before; a heavy ball barely moves and a light one flies',()=>{
+ const [a,b]=two({k:'solid',n:1},{k:'solid',n:2});assert.ok(Math.abs(a.vx+b.vx-300)<1e-6,'momentum is conserved');assert.ok(b.vx>a.vx)
+ const [c,heavy]=two({k:'solid',n:1},makeHeavy([],117,100));assert.ok(heavy.vx<b.vx*.6,'a heavy ball takes far less speed');assert.ok(c.vx<0,'and the cue ball rebounds off it')
+ const [d,light]=two({k:'solid',n:1},makeLight([],117,100));assert.ok(light.vx>b.vx*1.2,'a light ball is thrown harder');assert.ok(d.vx>a.vx)
+ const [heavyHitter,ordinary]=two({...makeHeavy([],100,100),vx:300},{k:'solid',n:2});assert.ok(ordinary.vx>b.vx,'what a heavy ball hits is sent flying');assert.ok(heavyHitter.vx>150,'and it plows on')
+ for(const [x,y] of [two({k:'solid',n:1},makeHeavy([],117,100)),two({...makeLight([],100,100),vx:300},{k:'solid',n:2})])assert.ok(Math.abs(x.vx*massOf(x)+y.vx*massOf(y)-300*massOf(x))<1e-6,'momentum along the line is conserved')
 })

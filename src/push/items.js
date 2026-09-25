@@ -8,8 +8,8 @@ export const ITEMS={
  wall:      {name:'Wall',      use:'place',range:'short', when:'before',rarity:8,blurb:'An immovable flat barrier.',group:'barrier'},
  cube:      {name:'Cube',      use:'place',range:'short', when:'before',rarity:8,blurb:'An immovable flat-sided block.',group:'barrier'},
  pillar:    {name:'Pillar',    use:'place',range:'short', when:'before',rarity:8,blurb:'An immovable round barrier.',group:'barrier'},
- cannonball:{name:'Cannon ball',use:'place',range:'short',when:'before',rarity:5,blurb:'A large, heavy movable ball.',group:'block'},
- pingpong:  {name:'Ping-pong ball',use:'place',range:'short',when:'before',rarity:8,blurb:'A small, light movable ball.',group:'block'},
+ cannonball:{name:'Cannon ball',use:'place',range:'short',when:'before',rarity:5,blurb:'A heavy ball: it barely moves when hit, and sends what it hits flying.',group:'block'},
+ pingpong:  {name:'Ping-pong ball',use:'place',range:'short',when:'before',rarity:8,blurb:'A light ball: any hit sends it flying.',group:'block'},
  roller:    {name:'Roller',    use:'place',range:'short', when:'before',rarity:6,blurb:'A movable cylinder that rolls.',group:'block'},
  hole:      {name:'Hole',      use:'place',range:'medium',when:'before',rarity:5,blurb:'Catches a slow ball; a fast one skips over.'},
  fan:       {name:'Fan',       use:'place',range:'medium',when:'before',rarity:5,blurb:'A directional repelling force for one shot.'},
@@ -24,9 +24,12 @@ export const ITEMS={
  cannon:    {name:'Cannon',    use:'shoot',when:'before',rarity:1,blurb:'Fire a cannon ball at full power. Rare.'}
 }
 export const ITEM_IDS=Object.keys(ITEMS)
+// Items in the catalogue with no working effect yet: they are never dropped, so nobody is handed something they cannot use.
+export const UNBUILT_ITEMS=['roller']
+export const DROPPABLE=ITEM_IDS.filter(id=>!UNBUILT_ITEMS.includes(id))
 
 // A weighted pick from the catalogue. `rand` is injectable (a function returning [0,1)).
-export function rollItem(rand=Math.random,ids=ITEM_IDS){
+export function rollItem(rand=Math.random,ids=DROPPABLE){
  const total=ids.reduce((s,id)=>s+ITEMS[id].rarity,0)
  let x=rand()*total
  for(const id of ids){x-=ITEMS[id].rarity;if(x<0)return id}

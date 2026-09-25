@@ -10,6 +10,7 @@ import {other} from './rules.js'
 //   breaker      who breaks each rack: always the host, taking turns, the winner, or the loser
 //   straightTo   the score that wins straight pool
 //   jumps        whether a player may play jump shots (the cue ball hops over balls in its way)
+//   cannon       P.U.S.H. modes: every player starts each rack holding a cannon (break with it, if you like)
 //
 // Ranked games are only ever played by the standard rules.
 
@@ -18,7 +19,7 @@ export const BALL_IN_HAND=['anywhere','kitchen','none']
 export const BREAKERS=['host','alternate','winner','loser']
 export const STRAIGHT_TARGETS=[15,30,50,100]
 
-export const DEFAULT_HOUSE={race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false}
+export const DEFAULT_HOUSE={race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false,cannon:false}
 
 // The head string: behind it is "the kitchen".
 export const HEAD_STRING=175
@@ -32,7 +33,8 @@ export function normalizeHouse(h){
   ballInHand:BALL_IN_HAND.includes(o.ballInHand)?o.ballInHand:DEFAULT_HOUSE.ballInHand,
   breaker:BREAKERS.includes(o.breaker)?o.breaker:DEFAULT_HOUSE.breaker,
   straightTo:STRAIGHT_TARGETS.includes(o.straightTo)?o.straightTo:DEFAULT_HOUSE.straightTo,
-  jumps:o.jumps===true
+  jumps:o.jumps===true,
+  cannon:o.cannon===true
  }
 }
 
@@ -50,6 +52,7 @@ export function describe(h){
  if(n.breaker!==DEFAULT_HOUSE.breaker)parts.push(BREAK_WORDS[n.breaker])
  if(n.straightTo!==DEFAULT_HOUSE.straightTo)parts.push(`straight pool to ${n.straightTo}`)
  if(n.jumps)parts.push('jump shots allowed')
+ if(n.cannon)parts.push('everyone starts with a cannon')
  return parts.join(' · ')
 }
 

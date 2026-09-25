@@ -7,10 +7,10 @@ import {bestCueSpot,chooseShot} from '../src/ai.js'
 import {R,MINX} from '../src/table.js'
 
 test('the defaults are the standard rules, and anything else is not',()=>{
- assert.deepEqual(DEFAULT_HOUSE,{race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false})
+ assert.deepEqual(DEFAULT_HOUSE,{race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false,cannon:false})
  assert.equal(isDefault(DEFAULT_HOUSE),true);assert.equal(isDefault(undefined),true);assert.equal(isDefault({}),true)
  for(const k of Object.keys(DEFAULT_HOUSE)){
-  const other={...DEFAULT_HOUSE,[k]:k==='race'?5:k==='ballInHand'?'kitchen':k==='breaker'?'alternate':k==='jumps'?true:50}
+  const other={...DEFAULT_HOUSE,[k]:k==='race'?5:k==='ballInHand'?'kitchen':k==='breaker'?'alternate':k==='jumps'||k==='cannon'?true:50}
   assert.equal(isDefault(other),false,k)
  }
  assert.equal(describe(DEFAULT_HOUSE),'')
@@ -21,7 +21,7 @@ test('rules from storage or from another player are validated, and junk falls ba
  for(const junk of [null,undefined,42,'x',[],{race:99,ballInHand:'lava',breaker:'never',straightTo:7},{race:'3'},{race:3.5}]){
   const n=normalizeHouse(junk);assert.deepEqual(n,DEFAULT_HOUSE,JSON.stringify(junk))
  }
- assert.deepEqual(normalizeHouse({race:5,ballInHand:'none',breaker:'loser',straightTo:15,jumps:true,extra:'x'}),{race:5,ballInHand:'none',breaker:'loser',straightTo:15,jumps:true})
+ assert.deepEqual(normalizeHouse({race:5,ballInHand:'none',breaker:'loser',straightTo:15,jumps:true,extra:'x'}),{race:5,ballInHand:'none',breaker:'loser',straightTo:15,jumps:true,cannon:false})
  for(const junk of ['true',1,'yes',null,{}])assert.equal(normalizeHouse({jumps:junk}).jumps,false,`jumps: ${JSON.stringify(junk)}`)
  // every offered choice is one that validates
  for(const r of RACES)assert.equal(normalizeHouse({race:r}).race,r)
@@ -131,4 +131,10 @@ test('the AI places the cue ball behind the head string when the rule says so',(
  }
  const plan=chooseShot(balls.map(b=>({...b})),null,true,'league','8ball',{player:'b',limitX:HEAD_STRING})
  assert.ok(!plan.place||plan.place.x<=HEAD_STRING)
+})
+
+test('the cannon house rule: a boolean, described, and it puts a cannon in every hand',()=>{
+ assert.equal(normalizeHouse({cannon:true}).cannon,true)
+ for(const junk of ['true',1,'yes',null,{}])assert.equal(normalizeHouse({cannon:junk}).cannon,false)
+ assert.match(describe({cannon:true}),/everyone starts with a cannon/);assert.equal(isDefault({cannon:true}),false)
 })

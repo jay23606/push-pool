@@ -1,4 +1,4 @@
-import {W,H,R,PR,POCKETS,COLORS,DUMMY_COLOR,RUT_COLOR,GEM_COLOR,ITEM_COLOR} from './table.js'
+import {W,H,R,PR,POCKETS,COLORS,dummyColor,GEM_COLOR,ITEM_COLOR} from './table.js'
 import {shapeOf,RANGE} from './push/placing.js'
 import {TOSS_RANGE,scatterAt} from './push/toss.js'
 import {ITEMS} from './push/items.js'
@@ -15,7 +15,7 @@ export function createRenderer2D(canvas,options={}){
  function drawBall(b){
   g.save();g.beginPath();g.arc(b.x,b.y,R,0,7);g.clip()
   const surface=g.createRadialGradient(b.x-3.5,b.y-4,1,b.x+2,b.y+3,R*1.25)
-  surface.addColorStop(0,'#fff');surface.addColorStop(.24,b.k==='cue'?'#e7e7e1':b.k==='dummy'?(b.n>=190?RUT_COLOR:DUMMY_COLOR):COLORS[b.n]);surface.addColorStop(.78,b.k==='cue'?'#c7c7c0':b.k==='dummy'?(b.n>=190?RUT_COLOR:DUMMY_COLOR):COLORS[b.n]);surface.addColorStop(1,'#101510')
+  surface.addColorStop(0,'#fff');surface.addColorStop(.24,b.k==='cue'?'#e7e7e1':b.k==='dummy'?dummyColor(b.n):COLORS[b.n]);surface.addColorStop(.78,b.k==='cue'?'#c7c7c0':b.k==='dummy'?dummyColor(b.n):COLORS[b.n]);surface.addColorStop(1,'#101510')
   g.fillStyle=surface;g.fillRect(b.x-R,b.y-R,2*R,2*R)
   if(b.k==='stripe'){g.fillStyle='#f9f6eb';g.fillRect(b.x-R,b.y-4.4,2*R,8.8)}
   if(b.k!=='cue'&&b.k!=='dummy'){g.fillStyle='#f7f4e9';g.beginPath();g.arc(b.x,b.y,4.45,0,7);g.fill();g.fillStyle='#172018';g.font='bold 5px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText(b.n,b.x,b.y+.4)}

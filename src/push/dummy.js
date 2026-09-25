@@ -9,15 +9,25 @@ export const isDummy=b=>b.k==='dummy'
 export const DUMMY_BASE=100
 
 export const makeDummy=(n,x,y,vx=0,vy=0)=>({id:n,x,y,vx,vy,wx:0,wy:0,wz:0,on:true,k:'dummy',n})
-// Ids 100-189 are ordinary dummies, and the smallest free one is used so ids never creep up over a long game;
-// 190-199 are rutabagas (a dummy that makes collisions unstable), which the wire format and the rules treat as dummies.
-export const RUTABAGA_BASE=190
+// Ids 100-169 are ordinary dummies, and the smallest free one is used so ids never creep up over a long game. 170-179 are
+// ping-pong balls (light), 180-189 cannon balls (heavy) and 190-199 rutabagas (they make collisions unstable). The wire format
+// and the rules treat them all as dummies; only the physics tells them apart, by mass.
+export const LIGHT_BASE=170,HEAVY_BASE=180,RUTABAGA_BASE=190
+export const LIGHT_MASS=.4,HEAVY_MASS=4
+export const massOf=b=>b.m??(b.k!=='dummy'?1:b.n>=RUTABAGA_BASE?1:b.n>=HEAVY_BASE?HEAVY_MASS:b.n>=LIGHT_BASE?LIGHT_MASS:1)
 export const isRutabaga=b=>b.k==='dummy'&&b.n>=RUTABAGA_BASE
 export function nextDummyId(balls){
  const used=new Set(balls.filter(isDummy).map(b=>b.n))
- for(let n=DUMMY_BASE;n<RUTABAGA_BASE;n++)if(!used.has(n))return n
- return RUTABAGA_BASE-1
+ for(let n=DUMMY_BASE;n<LIGHT_BASE;n++)if(!used.has(n))return n
+ return LIGHT_BASE-1
 }
+function nextIn(balls,lo,hi){
+ const used=new Set(balls.filter(isDummy).map(b=>b.n))
+ for(let n=lo;n<hi;n++)if(!used.has(n))return n
+ return hi-1
+}
+export const makeLight=(balls,x,y)=>makeDummy(nextIn(balls,LIGHT_BASE,HEAVY_BASE),x,y)
+export const makeHeavy=(balls,x,y)=>makeDummy(nextIn(balls,HEAVY_BASE,RUTABAGA_BASE),x,y)
 export function nextRutabagaId(balls){
  const used=new Set(balls.filter(isRutabaga).map(b=>b.n))
  for(let n=RUTABAGA_BASE;n<=199;n++)if(!used.has(n))return n
@@ -45,8 +55,8 @@ export function scatterDummies(balls,count,bounds,rand=Math.random){
 }
 
 // `count` dummies in a ring around (cx,cy), on free spots: a volcano's spew or a cluster breaking. Returns the new balls.
-export function scatterAround(balls,count,cx,cy,rand=Math.random){
- const out=[];let id=nextDummyId(balls)
+export function scatterAround(balls,count,cx,cy,rand=Math.random,kind='dummy'){
+ const out=[];let id=kind==='light'?nextIn(balls,LIGHT_BASE,HEAVY_BASE):nextDummyId(balls)
  for(let tries=0;out.length<count&&tries<count*60;tries++){
   const a=rand()*Math.PI*2,d=R*2.4+rand()*(24+tries*.6),x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d
   if(x<40||x>660||y<40||y>340)continue

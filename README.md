@@ -26,18 +26,18 @@ Points are the score **and** what powers cost.
 | | |
 |---|---|
 | **Level-ups** | Sinking a real ball offers three powers; a pick you have not taken waits for your next turn. |
-| **Powers** | Jump, Pop, Stink, Cute, Nudge (a tap that is not a shot), Tilt (roll every ball a chosen way), Trail (ice / electric / sand / plasma / stone). Armed from the panel at a level you choose, paid for on the shot. |
+| **Powers** | All nine: Guide (more bounces on the aiming line), Spin (stronger spin), Jump, Pop, Stink, Cute, Nudge (a tap that is not a shot), Tilt (roll every ball a chosen way), Trail (ice / electric / sand / plasma / stone). Armed from the panel at a level you choose, paid for on the shot. |
 | **Pickups** | Gems (points) and items drop between turns; the cue ball collects them. Feats (a double, a triple, five balls touched) pay bonuses. |
-| **Placing** | Wall, Cube, Pillar, Landmine, Fan, Hole, Ping-pong ball: range ring, ghost, Q/E or wheel to turn, click to place. |
+| **Placing** | Wall, Cube, Pillar, Landmine, Fan, Hole, Ping-pong ball (light), Cannon ball (heavy): range ring, ghost, Q/E or wheel to turn, click to place. |
 | **Tossing** | Bomb, Mortar, Smoke bomb, Cluster, Piggy bank, Rutabaga: drag out from the cue ball and let go; it always strays a little. |
-| **Other items** | Pop powder, Mulligan (rewinds the last shot, for either player), Cannon (a harder shot). |
+| **Other items** | Pop powder, Mulligan (rewinds the last shot, for either player), Cannon (the cue ball goes out heavy, at the hardest shot there is). A house rule gives everyone a cannon at the start of each rack, to break with. |
 | **Hazards** | Wormhole, Slicks (ice / electric / sand / plasma), Black hole, Hurricane, Volcano, Barf. |
 | **Bonuses** | Gem drop, item drop, Bonus hole (an extra pocket with a shown reward), P switch (dummies become gems). |
 | **Dummy balls** | Grey, normal physics, invisible to the rules. Rutabagas are dummies that make collisions unstable. |
 | **AI** | The practice opponent throws bombs at clusters, lights powder, and arms pop or cute. |
 
-Not built yet: movable blocks with mass (Cannon ball, Roller), the Guide and Spin powers as paid upgrades, a cannon break option,
-and the no-solids multi-player / team mode.
+Not built yet: the Roller (a movable cylinder; it is in the catalogue but never dropped) and the no-solids multi-player / team mode
+(more than two players, one shot per turn).
 
 ## How it fits together
 

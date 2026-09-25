@@ -1,5 +1,6 @@
 import {R,MINX,MAXX,MINY,MAXY} from './table.js'
 import {obstacleStep} from './obstacles.js'
+import {massOf} from './push/dummy.js'
 
 // The table is 700x380 units with a 9-unit ball radius, which puts one unit at
 // roughly 4.06 mm — so the speed scale the game already used is physical: a
@@ -81,23 +82,25 @@ export function strike(ball,vx,vy,a=0,bOff=0,jump=false){
 
 // Equal masses, so impulses are written per unit mass.
 export function ballCollide(a,b){
+ const ia=1/massOf(a),ib=1/massOf(b),sum=ia+ib
 if((a.z||0)+(b.z||0)>R*.35)return false        // one of them is in the air, over the other
  const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)
  if(!(d>0&&d<2*R))return false
  const nx=dx/d,ny=dy/d,ov=2*R-d
- a.x-=nx*ov/2;a.y-=ny*ov/2;b.x+=nx*ov/2;b.y+=ny*ov/2
+ a.x-=nx*ov*ia/sum;a.y-=ny*ov*ia/sum;b.x+=nx*ov*ib/sum;b.y+=ny*ov*ib/sum
  const vn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny
  if(vn<=0)return true                       // already separating
- const jn=(1+E_BALL)*vn/2
- a.vx-=jn*nx;a.vy-=jn*ny;b.vx+=jn*nx;b.vy+=jn*ny
+ const jn=(1+E_BALL)*vn/sum
+ a.vx-=jn*ia*nx;a.vy-=jn*ia*ny;b.vx+=jn*ib*nx;b.vy+=jn*ib*ny
  // Tangential friction at the contact point. This is throw: a spinning or
  // cut cue ball drags the object ball a little off the line of centres.
  const tx=-ny,ty=nx
  const s=(a.vx-b.vx)*tx+(a.vy-b.vy)*ty+R*(a.wz+b.wz)
  const lim=MU_BALL*jn
  const p=Math.max(-lim,Math.min(lim,s/7))   // s/7 would null the slip outright
- a.vx-=p*tx;a.vy-=p*ty
- b.vx+=p*tx;b.vy+=p*ty
+ const fa=2*ia/sum,fb=2*ib/sum      // the throw is shared by inverse mass: 1 and 1 for two ordinary balls
+ a.vx-=p*tx*fa;a.vy-=p*ty*fa
+ b.vx+=p*tx*fb;b.vy+=p*ty*fb
  a.wz-=5*p/(2*R);b.wz-=5*p/(2*R)
  return true
 }
