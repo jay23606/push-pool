@@ -12,7 +12,7 @@ import {isArmable,powerLevel} from './powers.js'
 // the spawns implemented so far; the rest of the catalogue is dealt only once its effect exists
 export const LIVE_SPAWNS=['gemdrop','itemdrop',...HAZARD_TYPES]
 export const GEM_LIFE=2,ITEM_LIFE=5
-const HAZARD_MESSAGE={pswitch:'A P switch has appeared',bonushole:'A bonus hole has opened',wormhole:'A wormhole has opened',slick:'A slick has appeared',blackhole:'A black hole has appeared',hurricane:'Hurricane!'}
+const HAZARD_MESSAGE={volcano:'A volcano erupts!',barf:'Barf!',pswitch:'A P switch has appeared',bonushole:'A bonus hole has opened',wormhole:'A wormhole has opened',slick:'A slick has appeared',blackhole:'A black hole has appeared',hurricane:'Hurricane!'}
 const REACH=R+8       // how close the cue ball must pass to a pickup to take it
 
 const inPush=(push,turn,fn)=>({...push,[turn]:fn(push[turn])})
@@ -36,7 +36,7 @@ export function collectPickups(push,score,turn,cue){
 // things may be dealt for the coming turn.
 export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=false,balls,bounds,rand=Math.random}){
  const messages=[]
- let release=[],dummies=0
+ let release=[],dummies=0,blasts=[],spews=[],barf=false
  let next=levelUps?inPush(push,shooter,p=>({...p,picks:p.picks+levelUps})):push
  // Offers belong to whoever is to play: when the turn passes they are dropped, and put up again for the next player if
  // they still owe a pick, so a level-up you did not get to take waits for your next turn.
@@ -47,6 +47,9 @@ export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=
  if(turnChanged){
   const turns=next.turns+1,aged=tickSpawns(next.spawns),pickups=next.pickups.map(k=>({...k,ttl:k.ttl-1})).filter(k=>k.ttl>0)
   const obs=ageHazards(next.obstacles);release=obs.released
+  // a volcano still open spews again, one fewer each time
+  for(const o of obs.alive)if(o.t==='bumper'&&o.vol>0)spews.push({x:o.x,y:o.y,count:o.vol+1})
+  obs.alive=obs.alive.map(o=>o.t==='bumper'&&o.vol>0?{...o,vol:o.vol-1}:o)
   next={...next,turns,spawns:aged.alive,pickups,obstacles:obs.alive}
   // a hazard of a kind already on the table is not dealt again
   const active=[...aged.alive,...obs.alive.map(hazardOf).filter(Boolean).map(type=>({type}))]
@@ -54,7 +57,7 @@ export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=
   for(const s of dealt){
    if(isHazardSpawn(s.type)){
     const h=makeHazard(s,balls,bounds,rand,[...next.obstacles.filter(o=>o.x!==undefined),...next.pickups])
-    if(h.obstacles.length||h.dummies){next={...next,obstacles:[...next.obstacles,...h.obstacles]};dummies+=h.dummies;messages.push(HAZARD_MESSAGE[s.type])}
+    if(h.obstacles.length||h.dummies||h.barf){next={...next,obstacles:[...next.obstacles,...h.obstacles]};dummies+=h.dummies;messages.push(HAZARD_MESSAGE[s.type]);if(h.blast)blasts.push(h.blast);if(h.spew)spews.push(h.spew);if(h.barf)barf=true}
     continue
    }
    if(s.type==='gemdrop'){
@@ -67,7 +70,7 @@ export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=
    }
   }
  }
- return {push:next,messages,release,dummies}
+ return {push:next,messages,release,dummies,blasts,spews,barf}
 }
 
 // The current player picks one of the offered powers. Clears the offers, and offers again if picks are still owed.

@@ -29,3 +29,15 @@ export function scatterDummies(balls,count,bounds,rand=Math.random){
  }
  return out
 }
+
+// `count` dummies in a ring around (cx,cy), on free spots: a volcano's spew or a cluster breaking. Returns the new balls.
+export function scatterAround(balls,count,cx,cy,rand=Math.random){
+ const out=[];let id=nextDummyId(balls)
+ for(let tries=0;out.length<count&&tries<count*60;tries++){
+  const a=rand()*Math.PI*2,d=R*2.4+rand()*(24+tries*.6),x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d
+  if(x<40||x>660||y<40||y>340)continue
+  if([...balls,...out].some(b=>b.on&&Math.hypot(b.x-x,b.y-y)<R*2.1))continue
+  out.push(makeDummy(id++,x,y))
+ }
+ return out
+}

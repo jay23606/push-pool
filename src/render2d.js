@@ -41,6 +41,8 @@ export function createRenderer2D(canvas,options={}){
    }
    for(const o of game.push?.obstacles||[])if(o.t==='smoke'){const gr=g.createRadialGradient(o.x,o.y,4,o.x,o.y,o.r);gr.addColorStop(0,'rgba(200,200,205,.8)');gr.addColorStop(1,'rgba(200,200,205,.15)');g.fillStyle=gr;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill()}
    for(const o of game.push?.obstacles||[]){
+    if(o.t==='fan'){const gr=g.createRadialGradient(o.x,o.y,4,o.x,o.y,o.r);gr.addColorStop(0,'rgba(190,235,255,.4)');gr.addColorStop(1,'rgba(190,235,255,.05)');g.fillStyle=gr;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.strokeStyle='#dff6ff';g.lineWidth=3;g.beginPath();g.moveTo(o.x-Math.cos(o.rot)*20,o.y-Math.sin(o.rot)*20);g.lineTo(o.x+Math.cos(o.rot)*20,o.y+Math.sin(o.rot)*20);g.stroke();g.beginPath();g.moveTo(o.x+Math.cos(o.rot)*26,o.y+Math.sin(o.rot)*26);g.lineTo(o.x+Math.cos(o.rot+2.5)*10,o.y+Math.sin(o.rot+2.5)*10);g.lineTo(o.x+Math.cos(o.rot-2.5)*10,o.y+Math.sin(o.rot-2.5)*10);g.closePath();g.fillStyle='#dff6ff';g.fill()}
+    if(o.t==='pit'){g.fillStyle='#050807';g.strokeStyle='#6b7280';g.lineWidth=2;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke()}
     if(o.t==='pswitch'){g.fillStyle='#ffd75d';g.strokeStyle='#5a3a00';g.lineWidth=1.5;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke();g.fillStyle='#5a3a00';g.font='bold 10px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('P',o.x,o.y+.5)}
     if(o.t==='bonushole'){g.fillStyle='#07100c';g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.strokeStyle='#5bd6ff';g.lineWidth=3;g.beginPath();g.arc(o.x,o.y,o.r+3,0,7);g.stroke();g.fillStyle='#5bd6ff';g.font='bold 11px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(o.reward.item?'?':'+'+o.reward.gems,o.x,o.y+(o.y<60?PR+8:-PR-6))}
    }
@@ -53,7 +55,7 @@ export function createRenderer2D(canvas,options={}){
      g.strokeStyle=col;g.lineWidth=2;g.beginPath();g.moveTo(cue.x,cue.y);g.lineTo(tx,ty);g.stroke();g.beginPath();g.arc(tx,ty,Math.max(3,scatterAt(cue,pl.pos)),0,7);g.stroke();g.beginPath();g.arc(tx,ty,3,0,7);g.fill()
     }
     g.strokeStyle=col;g.fillStyle=ok?'rgba(93,255,154,.25)':'rgba(255,93,93,.25)';g.lineWidth=4
-    for(const o of shapeOf(pl.item,pl.pos.x,pl.pos.y,pl.rot)){if(o.t==='bumper'){g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke()}else if(o.t==='mine'){g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke()}else{g.beginPath();g.moveTo(o.x1,o.y1);g.lineTo(o.x2,o.y2);g.stroke()}}
+    for(const o of shapeOf(pl.item,pl.pos.x,pl.pos.y,pl.rot)){if(o.t==='bumper'){g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke()}else if(o.t==='mine'||o.t==='pit'||o.t==='ball'){g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke()}else if(o.t==='fan'){g.beginPath();g.moveTo(o.x-Math.cos(o.rot)*20,o.y-Math.sin(o.rot)*20);g.lineTo(o.x+Math.cos(o.rot)*20,o.y+Math.sin(o.rot)*20);g.stroke()}else{g.beginPath();g.moveTo(o.x1,o.y1);g.lineTo(o.x2,o.y2);g.stroke()}}
    }
    // P.U.S.H. Pool pickups: a gem is a blue diamond, an item an amber box, both bobbing a little
    for(const k of game.push?.pickups||[]){

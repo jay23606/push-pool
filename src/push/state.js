@@ -24,7 +24,8 @@ const validPickup=k=>k&&typeof k==='object'&&fin(k.x)&&fin(k.y)&&Number.isIntege
  &&(k.kind==='gem'?Number.isInteger(k.v)&&k.v>=1&&k.v<=99:k.kind==='item'&&Boolean(ITEMS[k.id]))
 
 const validObstacle=o=>o&&typeof o==='object'&&Number.isInteger(o.ttl)&&o.ttl>=0&&o.ttl<=12&&(
- (o.t==='bumper'||o.t==='mine'||o.t==='smoke')?['x','y','r'].every(k=>fin(o[k])):
+ (o.t==='bumper'||o.t==='mine'||o.t==='smoke'||o.t==='pit')?['x','y','r'].every(k=>fin(o[k]))&&(o.vol===undefined||Number.isInteger(o.vol)&&o.vol>=0&&o.vol<=9)&&(o.piggy===undefined||Number.isInteger(o.piggy)&&o.piggy>=0&&o.piggy<=99):
+ o.t==='fan'?['x','y','r','rot'].every(k=>fin(o[k])):
  o.t==='wall'?['x1','y1','x2','y2'].every(k=>fin(o[k])):
  o.t==='portal'?['x','y','r'].every(k=>fin(o[k]))&&Array.isArray(o.to)&&o.to.length===2&&o.to.every(fin):
  o.t==='slick'?['x','y','r'].every(k=>fin(o[k]))&&SLICKS.includes(o.variant):

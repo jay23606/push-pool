@@ -18,9 +18,12 @@ export const MAX_DUMMIES_ON_TABLE=40       // hurricanes and the like stop once 
 
 // per second: what a slick does to the speed of a ball on it
 const SLICK_RATE={ice:.55,electric:1.3,sand:-2.2,plasma:-7}
-export const HAZARD_TYPES=['wormhole','slick','blackhole','hurricane','pswitch','bonushole']
+export const HAZARD_TYPES=['wormhole','slick','blackhole','hurricane','pswitch','bonushole','volcano','barf']
+export const VOLCANO_R=22,VOLCANO_SPEWS=3,VOLCANO_ERUPT=6     // it erupts with six dummies, then spews one more than it has left each turn
+export const FAN_FORCE=520,PIT_SLOW=120,PIT_ESCAPE=160
 export const PSWITCH_R=9,PSWITCH_GEM=5      // hit it and every dummy on the table becomes a gem worth this much
 
+const pitKey=o=>o.x+','+o.y
 const between=(rand,[lo,hi])=>lo+Math.floor(rand()*(hi-lo+1))
 
 // Build what a hazard spawn becomes: obstacle records and/or a number of dummy balls to rain.
@@ -41,6 +44,12 @@ export function makeHazard(spawn,balls,bounds,rand=Math.random,taken=[]){
   const at=freeSpot([],taken,bounds,rand);if(!at)return {obstacles:[],dummies:0}
   return {obstacles:[{t:'blackhole',x:at[0],y:at[1],r:HOLE_R,held:[],ttl}],dummies:0}
  }
+ if(spawn.type==='volcano'){
+  const at=freeSpot(balls,taken,bounds,rand);if(!at)return {obstacles:[],dummies:0}
+  // the volcano is a barrier (a bumper the physics already knows) that flings the balls near it away, then spews dummies
+  return {obstacles:[{t:'bumper',x:at[0],y:at[1],r:VOLCANO_R,vol:VOLCANO_SPEWS,ttl}],dummies:0,blast:{x:at[0],y:at[1],radius:8*R,power:1300},spew:{x:at[0],y:at[1],count:VOLCANO_ERUPT}}
+ }
+ if(spawn.type==='barf')return {obstacles:[],dummies:0,barf:true}
  if(spawn.type==='pswitch'){
   const at=freeSpot(balls,taken,bounds,rand);if(!at)return {obstacles:[],dummies:0}
   return {obstacles:[{t:'pswitch',x:at[0],y:at[1],r:PSWITCH_R,ttl}],dummies:0}
@@ -66,7 +75,27 @@ export function makeHazard(spawn,balls,bounds,rand=Math.random,taken=[]){
 // [{hole,ball}]; the caller takes them off the table and records them (a hole holds at most HOLE_MAX_HELD).
 export function stepHazards(balls,obstacles,dt){
  const swallowed=[]
+ // a ball pinned in a hole that is no longer there is free
+ for(const b of balls)if(b.pit&&!obstacles.some(o=>o.t==='pit'&&pitKey(o)===b.pit))b.pit=null
  for(const o of obstacles){
+  if(o.t==='fan'){
+   for(const b of balls){
+    if(!b.on||(b.z||0)>0)continue
+    const dx=b.x-o.x,dy=b.y-o.y,d=Math.hypot(dx,dy);if(d>=o.r)continue
+    const a=FAN_FORCE*(1-d/o.r)*dt;b.vx+=Math.cos(o.rot)*a;b.vy+=Math.sin(o.rot)*a
+   }
+   continue
+  }
+  if(o.t==='pit'){
+   const key=pitKey(o)
+   for(const b of balls){
+    if(!b.on||(b.z||0)>0)continue
+    const sp=Math.hypot(b.vx,b.vy)
+    if(b.pit===key){if(sp>PIT_ESCAPE)b.pit=null;else{b.vx=b.vy=0;b.x=o.x;b.y=o.y}}
+    else if(!b.pit&&sp<PIT_SLOW&&Math.hypot(b.x-o.x,b.y-o.y)<o.r*.75){b.pit=key;b.vx=b.vy=0;b.x=o.x;b.y=o.y}
+   }
+   continue
+  }
   if(o.t!=='slick'&&o.t!=='blackhole')continue
   for(const b of balls){
    if(!b.on||(b.z||0)>0)continue
@@ -99,6 +128,6 @@ export function ageHazards(list){
 }
 
 // The hazard a live record belongs to, for the "not two of a kind" rule.
-export const hazardOf=o=>o.t==='portal'?'wormhole':(o.t==='slick'||o.t==='blackhole'||o.t==='pswitch'||o.t==='bonushole')?o.t:null
+export const hazardOf=o=>o.t==='bumper'&&o.vol!==undefined?'volcano':o.t==='portal'?'wormhole':(o.t==='slick'||o.t==='blackhole'||o.t==='pswitch'||o.t==='bonushole')?o.t:null
 export const isHazardSpawn=type=>HAZARD_TYPES.includes(type)&&Boolean(SPAWN_TYPES[type])
 export const RADIUS_CLEAR=R*2

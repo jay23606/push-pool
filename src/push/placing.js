@@ -11,7 +11,8 @@ import {useItem,whyNotItem} from './economy.js'
 export const RANGE={short:100,medium:180}
 export const OBSTACLE_LIFE=6,MAX_OBSTACLES=12
 export const WALL_LEN=64,CUBE_SIDE=34,PILLAR_R=10
-export const PLACEABLE=['wall','cube','pillar','landmine']
+export const PLACEABLE=['wall','cube','pillar','landmine','fan','hole','pingpong']
+export const FAN_R=90,FAN_LIFE=1,PIT_R=15,PIT_LIFE=6
 export const MINE_R=8,MINE_LIFE=8,MINE_BLAST_R=6,MINE_BLAST_POWER=900   // the blast reaches this many ball radii
 export const isPlaceable=id=>PLACEABLE.includes(id)
 
@@ -20,6 +21,9 @@ export function shapeOf(id,x,y,rot=0){
  const c=Math.cos(rot),s=Math.sin(rot)
  if(id==='pillar')return [{t:'bumper',x,y,r:PILLAR_R}]
  if(id==='landmine')return [{t:'mine',x,y,r:MINE_R}]
+ if(id==='fan')return [{t:'fan',x,y,r:FAN_R,rot}]
+ if(id==='hole')return [{t:'pit',x,y,r:PIT_R}]
+ if(id==='pingpong')return [{t:'ball',x,y,r:R*.7}]
  if(id==='wall'){const h=WALL_LEN/2;return [{t:'wall',x1:x-c*h,y1:y-s*h,x2:x+c*h,y2:y+s*h}]}
  if(id==='cube'){
   const h=CUBE_SIDE/2,pts=[[-h,-h],[h,-h],[h,h],[-h,h]].map(([px,py])=>[x+px*c-py*s,y+px*s+py*c])
@@ -34,7 +38,8 @@ const rounded=o=>o.t!=='wall'?{...o,x:round1(o.x),y:round1(o.y)}:{...o,x1:round1
 function samples(list){
  const pts=[]
  for(const o of list){
-  if(o.t==='bumper'||o.t==='mine')pts.push({x:o.x,y:o.y,r:o.r})
+  if(o.t==='fan')pts.push({x:o.x,y:o.y,r:10})
+  else if(o.t==='bumper'||o.t==='mine'||o.t==='pit'||o.t==='ball')pts.push({x:o.x,y:o.y,r:o.r})
   else{const n=Math.max(2,Math.ceil(Math.hypot(o.x2-o.x1,o.y2-o.y1)/6));for(let i=0;i<=n;i++)pts.push({x:o.x1+(o.x2-o.x1)*i/n,y:o.y1+(o.y2-o.y1)*i/n,r:WALL_R})}
  }
  return pts
@@ -60,7 +65,9 @@ export function whyNotPlace(push,turn,id,spot,{cue,balls,bounds}){
 // Place it: the item is used up and its obstacles go on the table with a lifetime. Refused, it returns the same state.
 export function placeItem(push,turn,id,spot,ctx){
  if(whyNotPlace(push,turn,id,spot,ctx))return push
- const parts=shapeOf(id,spot.x,spot.y,spot.rot||0).map(o=>({...rounded(o),item:id,ttl:id==='landmine'?MINE_LIFE:OBSTACLE_LIFE}))
+ const parts=shapeOf(id,spot.x,spot.y,spot.rot||0).map(o=>({...rounded(o),item:id,ttl:id==='landmine'?MINE_LIFE:id==='fan'?FAN_LIFE:id==='hole'?PIT_LIFE:OBSTACLE_LIFE}))
+ // a ping-pong ball is a dummy ball, not an obstacle: it is handed to the game as a drop to turn into a ball
+ if(id==='pingpong')return {...push,[turn]:useItem(push[turn],id,'before'),drops:[{x:Math.round(spot.x),y:Math.round(spot.y)}]}
  return {...push,[turn]:useItem(push[turn],id,'before'),obstacles:[...(push.obstacles||[]),...parts]}
 }
 

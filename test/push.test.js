@@ -293,7 +293,7 @@ test('placeable items turn into the obstacle records the physics already knows',
  const tilted=shapeOf('wall',200,190,Math.PI/2);assert.ok(Math.abs(tilted[0].x1-tilted[0].x2)<1e-9,'rotated a quarter turn it stands upright')
  assert.equal(shapeOf('cube',200,190,.4).length,4,'a cube is four walls')
  assert.equal(shapeOf('pillar',200,190)[0].t,'bumper')
- assert.deepEqual(PLACEABLE,['wall','cube','pillar','landmine']);assert.deepEqual(shapeOf('bomb',1,1),[])
+ assert.deepEqual(PLACEABLE,['wall','cube','pillar','landmine','fan','hole','pingpong']);assert.deepEqual(shapeOf('bomb',1,1),[])
 })
 
 test('a placed wall really stops a ball: the physics treats it like any obstacle',()=>{
@@ -386,7 +386,7 @@ test('toss rules: held, tossable, cue ball on the table; the item is used up',()
  assert.equal(whyNotToss(h,'a','bomb',c),null);assert.equal(whyNotToss(h,'a','wall',c),'not-tossable');assert.equal(whyNotToss(holding(),'a','bomb',c),'not-held')
  assert.equal(whyNotToss(h,'a','bomb',{cue:{...cueAt(1,1),on:false}}),'no-cue')
  assert.deepEqual(tossItem(h,'a','bomb',c).a.items,['wall']);assert.equal(tossItem(h,'a','wall',c),h)
- assert.deepEqual(TOSSABLE,['bomb','mortar','smokebomb'])
+ assert.deepEqual(TOSSABLE,['bomb','mortar','smokebomb','cluster','piggybank'])
 })
 
 test('a bomb skids on where it landed, a mortar goes off exactly there, and smoke is a cloud that lasts a few turns',()=>{
@@ -423,7 +423,7 @@ test('slicks come in four kinds with a sensible size; a black hole starts empty;
  const hu=makeHazard(spawnOf('hurricane'),[],BOUNDS,seeded(4));assert.deepEqual(hu.obstacles,[]);assert.ok(hu.dummies>=HURRICANE[0]&&hu.dummies<=HURRICANE[1])
  const crowded=Array.from({length:MAX_DUMMIES_ON_TABLE},(_,i)=>makeDummy(100+i,1,1))
  assert.equal(makeHazard(spawnOf('hurricane'),crowded,BOUNDS,seeded(4)).dummies,0,'a crowded table gets no more')
- assert.equal(makeHazard(spawnOf('volcano'),[],BOUNDS,seeded(1)).obstacles.length,0,'not built yet: nothing')
+ assert.equal(makeHazard(spawnOf('mystery'),[],BOUNDS,seeded(1)).obstacles.length,0,'an unknown type makes nothing')
 })
 
 const rolling=(x,y,vx,vy)=>({n:5,k:'solid',on:true,x,y,vx,vy,wx:0,wy:0,wz:0,z:0})
@@ -475,4 +475,61 @@ test('a P switch and a bonus hole are dealt as records; the hole sits on a long 
  assert.equal(validPush({...withPush(),obstacles:[{t:'bonushole',x:1,y:1,r:5,reward:{item:'nuke'},ttl:1}]}),false,'an unknown item')
  assert.equal(validPush({...withPush(),obstacles:[{t:'bonushole',x:1,y:1,r:5,reward:{gems:1000},ttl:1}]}),false,'too many gems')
  assert.equal(hazardOf(ps),'pswitch')
+})
+
+// ---- fan, hole, volcano, barf, piggy bank ----
+import {VOLCANO_ERUPT,VOLCANO_SPEWS,FAN_FORCE,PIT_SLOW,PIT_ESCAPE} from '../src/push/hazards.js'
+import {FAN_R,PIT_R} from '../src/push/placing.js'
+import {scatterAround} from '../src/push/dummy.js'
+
+test('a fan pushes balls along its direction, more the nearer, and only inside its reach',()=>{
+ const fan={t:'fan',x:200,y:200,r:FAN_R,rot:0,ttl:1}
+ const near=rolling(220,200,0,0),far=rolling(200+FAN_R+5,200,0,0),edge=rolling(200+FAN_R-5,200,0,0)
+ stepHazards([near,far,edge],[fan],.05)
+ assert.ok(near.vx>edge.vx&&edge.vx>0,'stronger near the fan');assert.equal(far.vx,0)
+ const turned=rolling(200,220,0,0);stepHazards([turned],[{...fan,rot:Math.PI/2}],.05);assert.ok(turned.vy>0&&Math.abs(turned.vx)<1e-9,'pushes the way it points')
+ assert.ok(FAN_FORCE>0);assert.ok(validPush({...withPush(),obstacles:[fan]}))
+})
+
+test('a hole catches a slow ball, holds it, lets a hard hit knock it free, and a fast ball skips over',()=>{
+ const pit={t:'pit',x:200,y:200,r:PIT_R,ttl:5}
+ const slow=rolling(203,200,PIT_SLOW-30,0);stepHazards([slow],[pit],.01);assert.ok(slow.pit);assert.equal(slow.vx,0);assert.equal(slow.x,200)
+ stepHazards([slow],[pit],.01);assert.equal(slow.x,200,'it stays put')
+ slow.vx=PIT_ESCAPE+50;stepHazards([slow],[pit],.01);assert.equal(slow.pit,null,'a hard hit frees it');assert.ok(slow.vx>0)
+ const fast=rolling(203,200,PIT_SLOW+200,0);stepHazards([fast],[pit],.01);assert.ok(!fast.pit,'a fast ball skips over')
+ const orphan=rolling(50,50,0,0);orphan.pit='9,9';stepHazards([orphan],[pit],.01);assert.equal(orphan.pit,null,'a pin to a hole that has gone is dropped')
+ assert.ok(validPush({...withPush(),obstacles:[pit]}))
+})
+
+test('fan, hole and ping-pong can be placed; a ping-pong ball is a drop, not an obstacle',()=>{
+ const h=holding('fan','hole','pingpong'),c=ctx()
+ for(const id of ['fan','hole','pingpong'])assert.equal(whyNotPlace(h,'a',id,{x:250,y:150,rot:0},c),null,id)
+ const fan=placeItem(h,'a','fan',{x:250,y:150,rot:1},c);assert.equal(fan.obstacles[0].t,'fan');assert.equal(fan.obstacles[0].ttl,1);assert.equal(fan.obstacles[0].rot,1)
+ const hole=placeItem(h,'a','hole',{x:250,y:150},c);assert.equal(hole.obstacles[0].t,'pit')
+ const pp=placeItem(h,'a','pingpong',{x:250,y:150},c);assert.deepEqual(pp.drops,[{x:250,y:150}]);assert.equal((pp.obstacles||[]).length,0);assert.deepEqual(pp.a.items,['fan','hole'])
+ assert.equal(whyNotPlace(h,'a','fan',{x:200+181,y:190,rot:0},c),'too-far')
+})
+
+test('a volcano erupts with a blast and dummies, then spews fewer each turn, then closes',()=>{
+ const v=makeHazard(spawnOf('volcano',{ttl:4}),[],BOUNDS,seeded(3));assert.equal(v.obstacles[0].t,'bumper');assert.equal(v.obstacles[0].vol,VOLCANO_SPEWS)
+ assert.equal(v.spew.count,VOLCANO_ERUPT);assert.ok(v.blast.power>0);assert.equal(hazardOf(v.obstacles[0]),'volcano');assert.ok(validPush({...withPush(),obstacles:v.obstacles}))
+ let push=withPush({turns:1,obstacles:v.obstacles}),counts=[]
+ for(let i=0;i<5;i++){const r=afterShot(push,{shooter:'a',nextTurn:'b',turnChanged:true,balls:[],bounds:BOUNDS,rand:()=>.99});push=r.push;counts.push(r.spews.reduce((n,x)=>n+x.count,0))}
+ assert.deepEqual(counts,[4,3,2,0,0],'one more than it has left each turn, then it is only a barrier');assert.equal(push.obstacles.length,0,'and it is gone after its four turns')
+})
+
+test('scatterAround puts dummies in a ring around a point, clear of balls and on the cloth',()=>{
+ const out=scatterAround([{n:0,k:'cue',on:true,x:300,y:190}],6,300,190,seeded(4))
+ assert.equal(out.length,6);for(const d of out){assert.ok(Math.hypot(d.x-300,d.y-190)>=18);assert.ok(d.x>=40&&d.x<=660&&d.y>=40&&d.y<=340);assert.equal(d.k,'dummy')}
+ assert.equal(new Set(out.map(d=>d.n)).size,6)
+})
+
+test('a barf is dealt as an instruction, not an object',()=>{
+ const b=makeHazard(spawnOf('barf',{ttl:1}),[],BOUNDS,seeded(1));assert.equal(b.barf,true);assert.equal(b.obstacles.length,0)
+})
+
+test('the cluster and the piggy bank are tossable, and piggy state is validated',()=>{
+ assert.ok(EFFECTS.cluster&&EFFECTS.piggybank)
+ assert.ok(validPush({...withPush(),obstacles:[{t:'bumper',x:1,y:1,r:11,piggy:30,ttl:5}]}))
+ assert.equal(validPush({...withPush(),obstacles:[{t:'bumper',x:1,y:1,r:11,piggy:1000,ttl:5}]}),false)
 })

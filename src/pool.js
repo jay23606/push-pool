@@ -1,5 +1,5 @@
 import {setObstacles,presetItems} from './obstacles.js'
-import {R,PR,MINX,MAXX,MINY,MAXY,POCKETS,tableSize} from './table.js'
+import {R,PR,MINX,MAXX,MINY,MAXY,POCKETS,tableSize,W,H} from './table.js'
 import {integrate,railBounce,ballCollide,substeps,atRest,clearMotion,strike,shotSpeed} from './physics.js'
 import {normalizeHouse,nextBreaker,placementLimit} from './house.js'
 import {airborne} from './physics.js'
@@ -9,7 +9,9 @@ import {renderPushPanel} from './push/panel.js'
 import {powerCost,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS} from './push/powers.js'
 import {placeItem,whyNotPlace,isPlaceable,MINE_BLAST_R,MINE_BLAST_POWER} from './push/placing.js'
 import {isTossable,landing,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS} from './push/toss.js'
-import {DUMMY_POINTS,scatterDummies} from './push/dummy.js'
+import {DUMMY_POINTS,scatterDummies,scatterAround,makeDummy,nextDummyId} from './push/dummy.js'
+import {PIGGY_GEMS,PIGGY_R,PIGGY_LIFE,CLUSTER_SIZE} from './push/toss.js'
+import {rollGem} from './push/items.js'
 import {stepHazards,PSWITCH_GEM} from './push/hazards.js'
 import {giveItem} from './push/economy.js'
 import {freeSpot} from './push/logic-spots.js'
@@ -346,15 +348,43 @@ export class PoolGame{
  // P.U.S.H. Pool. The host judges everything; a guest only asks (a pick, a jump) and is told the result in the next state.
  pushAfterShot(shooter,v){
   if(!this.push)return
-  const r=afterShot(this.push,{shooter,nextTurn:v.nextTurn,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY}})
+  const r=afterShot(this.push,{shooter,nextTurn:v.nextTurn,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY},rand:this.dealRand||Math.random})
   this.balls=this.balls.filter(b=>b.k!=='dummy'||b.on)     // dummies that dropped in a pocket are gone for good
   this.push=r.push;this.placing=null;this.syncObstacles()
   // what the hazards did: a black hole that closed gives its balls back, a hurricane rains dummies
   for(const rel of r.release||[])this.releaseBall(rel)
+  this.piggyTouched=null
+  let rolling=false
+  for(const bl of r.blasts||[]){blast(this.balls,bl,{radius:bl.radius,power:bl.power});rolling=true}
+  for(const sp of r.spews||[])this.balls.push(...scatterAround(this.balls,sp.count,sp.x,sp.y,Math.random))
+  if(r.barf)this.barf()
   if(r.dummies)this.balls.push(...scatterDummies(this.balls,r.dummies,{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY},Math.random))
   if(r.messages.length)this.flash(r.messages[0])
   // the practice AI takes its level-up at once, at random
   while(this.push.offers&&this.practice&&!this.hotSeat&&this.turn==='b')this.applyPick('b',this.push.offers[Math.floor(Math.random()*this.push.offers.length)].id)
+  // an eruption sets balls rolling: let them settle, and whatever drops scores for the player about to shoot
+  if(rolling&&!this.tossing)this.tossStart()
+ }
+ // the pockets give back some of what they last swallowed: real balls come back, dummies are made anew
+ barf(){
+  const log=this.pocketLog||[];if(!log.length)return
+  const pockets=[...new Set(log.map(e=>e.p))],p=pockets[Math.floor(Math.random()*pockets.length)]
+  const mine=log.filter(e=>e.p===p),take=mine.slice(-Math.min(mine.length,1+Math.floor(Math.random()*5)))
+  this.pocketLog=log.filter(e=>!take.includes(e))
+  const [px,py]=POCKETS[p],dx=W/2-px,dy=H/2-py,d=Math.hypot(dx,dy)||1
+  take.forEach((e,i)=>{
+   const x=px+dx/d*(R*2.8+i*R*2.3),y=py+dy/d*(R*2.8+i*R*2.3)
+   let ball
+   if(e.k==='dummy'){ball=makeDummy(nextDummyId(this.balls),x,y);this.balls.push(ball)}
+   else{ball=this.balls.find(q=>q.n===e.n);if(!ball||ball.on)return;ball.on=true;ball.x=x;ball.y=y;clearMotion(ball)}
+   this.placeNear(ball,x,y)
+  })
+ }
+ // A tossed or blasted table settles before anything is scored: the flag, the cue ball's place, and a clean slate for the pots.
+ tossStart(){
+  const cue=this.balls[0]
+  this.tossing=true;this.tossCue={x:cue.x,y:cue.y}
+  this.potted=[];this.firstObjectPotted=null;this.scratch=false;this.firstHit=null;this.pocketOf={};this.railBalls=new Set();this.phase='roll';this.acc=0
  }
  applyPick(player,id){
   if(!this.push||this.turn!==player)return
@@ -409,10 +439,39 @@ export class PoolGame{
   if(eff.kind==='smoke'){
    this.push={...this.push,obstacles:[...(this.push.obstacles||[]),smokeAt(spot)]};this.syncObstacles();this.sync();this.flash('Smoke bomb');return
   }
-  const at=skidTo(spot,spot.dir,item,ctx.bounds),cue=this.balls[0]
-  this.tossing=true;this.tossCue={x:cue.x,y:cue.y}
-  this.potted=[];this.firstObjectPotted=null;this.scratch=false;this.firstHit=null;this.pocketOf={};this.railBalls=new Set();this.phase='roll'
+  if(eff.kind==='cluster'){
+   this.balls.push(...scatterAround(this.balls,CLUSTER_SIZE,spot.x,spot.y,Math.random));this.sync();this.flash('Cluster · five ping-pong balls');return
+  }
+  if(eff.kind==='piggy'){
+   const gems=PIGGY_GEMS[0]+Math.floor(Math.random()*(PIGGY_GEMS[1]-PIGGY_GEMS[0]+1)),pig={t:'bumper',x:spot.x,y:spot.y,r:PIGGY_R,piggy:gems,ttl:PIGGY_LIFE}
+   this.push={...this.push,obstacles:[...(this.push.obstacles||[]),pig]};this.syncObstacles();this.dispense(pig);this.sync();this.flash('Piggy bank');return
+  }
+  const at=skidTo(spot,spot.dir,item,ctx.bounds)
+  this.tossStart()
   blast(this.balls,at,{radius:eff.radius,power:eff.power});this.flash('BOOM');this.sync()
+ }
+ // A piggy bank spills a few gems each time something hits it (and when it is thrown), then goes when it is empty.
+ dispense(pig){
+  const list=this.push.obstacles,i=list.findIndex(o=>o===pig||(o.piggy!==undefined&&o.x===pig.x&&o.y===pig.y));if(i<0)return
+  const cur=list[i],n=Math.min(cur.piggy,1+Math.floor(Math.random()*4)),gems=[]
+  for(let k=0;k<n;k++){
+   const at=freeSpot(this.balls,[...(this.push.pickups||[]),...gems],{minx:Math.max(MINX,cur.x-60),maxx:Math.min(MAXX,cur.x+60),miny:Math.max(MINY,cur.y-60),maxy:Math.min(MAXY,cur.y+60)},Math.random)
+   if(at)gems.push({kind:'gem',v:rollGem(Math.random),x:at[0],y:at[1],ttl:2})
+  }
+  const left=cur.piggy-n,obstacles=left>0?list.map((o,j)=>j===i?{...o,piggy:left}:o):list.filter((_,j)=>j!==i)
+  this.push={...this.push,obstacles,pickups:[...(this.push.pickups||[]),...gems].slice(-40)};this.syncObstacles()
+ }
+ piggyCheck(){
+  const list=this.push?.obstacles;if(!list?.some(o=>o.piggy>0))return
+  const seen=this.piggyTouched??=new Set()
+  for(const o of list){
+   if(!(o.piggy>0))continue
+   for(const b of this.balls){
+    if(!b.on||Math.hypot(b.vx,b.vy)<4||Math.hypot(b.x-o.x,b.y-o.y)>R+o.r+2)continue
+    const key=o.x+','+o.y+':'+b.n;if(seen.has(key))continue
+    seen.add(key);this.dispense(o);this.flash('Gems!');return
+   }
+  }
  }
  resolveToss(){
   const shooter=this.turn,cue=this.balls[0]
@@ -426,11 +485,16 @@ export class PoolGame{
   if(this.balls.filter(b=>b.on&&b.k!=='cue'&&b.k!=='dummy').length<=1)this.reRack()
   this.pushAfterShot(shooter,{levelUps:real.length,nextTurn:shooter,foul:false})
   this.sync()
+  if(this.practice&&!this.hotSeat&&!this.over&&this.turn==='b')setTimeout(()=>this.aiShot(),650)
  }
  applyPlace(player,item,spot){
   if(!this.push||this.turn!==player||this.phase!=='aim')return
   const next=placeItem(this.push,player,item,spot,this.placeCtx());if(next===this.push)return
-  this.push=next;this.syncObstacles();this.sync();this.flash(ITEMS[item].name+' placed')
+  const {drops,...rest}=next
+  this.push=rest
+  // a ping-pong ball is a dummy ball dropped where you put it
+  for(const d of drops||[])this.balls.push(makeDummy(nextDummyId(this.balls),d.x,d.y))
+  this.syncObstacles();this.sync();this.flash(ITEMS[item].name+' placed')
  }
  // Powers armed before a shot. Clicking a power in the panel steps it through its levels and back off.
  cycleArm(id){
@@ -469,11 +533,14 @@ export class PoolGame{
  }
  releaseBall({n,x,y}){
   const b=this.balls.find(q=>q.n===n);if(!b||b.on)return
+  this.placeNear(b,x,y);b.on=true;clearMotion(b)
+ }
+ // put a ball at the free spot nearest (x,y), spiralling outward
+ placeNear(b,x,y){
   for(let i=0;i<40;i++){
    const a=i*2.4,d=R*2.6+i*2.5,px=Math.min(MAXX,Math.max(MINX,x+Math.cos(a)*d)),py=Math.min(MAXY,Math.max(MINY,y+Math.sin(a)*d))
    if(!this.balls.some(q=>q!==b&&q.on&&Math.hypot(q.x-px,q.y-py)<R*2.1)){b.x=px;b.y=py;break}
   }
-  b.on=true;clearMotion(b)
  }
  bonusHoles(){return (this.push?.obstacles||[]).filter(o=>o.t==='bonushole')}
  // Anything that drops into a bonus hole -- any ball, the cue ball, a dummy -- pays its reward to the shooter, then comes back:
@@ -525,13 +592,13 @@ export class PoolGame{
   this.flash(items.length?'Picked up '+ITEMS[items[0].id].name:'+'+gems)
  }
  sub(dt){
-  this.collect();this.shotEffects(dt);if(this.mode==='push'){this.mineCheck();this.switchCheck();if(this.push?.obstacles?.some(o=>o.t==='slick'||o.t==='blackhole'))this.hazards(dt)}
+  this.collect();this.shotEffects(dt);if(this.mode==='push'){this.mineCheck();this.switchCheck();this.piggyCheck();if(this.push?.obstacles?.some(o=>o.t==='slick'||o.t==='blackhole'||o.t==='fan'||o.t==='pit'))this.hazards(dt)}
   const well=this.fx&&this.fx.type==='well'?this.fx:null,pockets=this.pocketList(),scale=this.pocketScale()
   for(const b of this.balls){
    if(!b.on)continue
    if(well&&!airborne(b))wellPull(b,well,dt)
    integrate(b,dt)
-   for(let p=0;p<pockets.length;p++){const q=pockets[p];if(!airborne(b)&&Math.hypot(b.x-q.x,b.y-q.y)<q.r*(p<6?scale:1)){if(p>=6&&this.mode==='push'){this.sinkBonus(b,p-6);break}b.on=false;if(b.k==='cue')this.scratch=true;else{this.potted.push(b);(this.pocketOf??={})[b.n]=p;if(!this.firstObjectPotted&&(b.k==='solid'||b.k==='stripe'))this.firstObjectPotted=b}if(b.k==='eight')this.eightPocket=p;this.flash(this.pottedMessage(b));break}}
+   for(let p=0;p<pockets.length;p++){const q=pockets[p];if(!airborne(b)&&Math.hypot(b.x-q.x,b.y-q.y)<q.r*(p<6?scale:1)){if(p>=6&&this.mode==='push'){this.sinkBonus(b,p-6);break}b.on=false;if(b.k==='cue')this.scratch=true;else{this.potted.push(b);if(this.mode==='push'){(this.pocketLog??=[]).push({p,n:b.n,k:b.k});if(this.pocketLog.length>30)this.pocketLog.shift()};(this.pocketOf??={})[b.n]=p;if(!this.firstObjectPotted&&(b.k==='solid'||b.k==='stripe'))this.firstObjectPotted=b}if(b.k==='eight')this.eightPocket=p;this.flash(this.pottedMessage(b));break}}
    if(!b.on)continue
    if(railBounce(b)){
     // which balls touched a cushion, and whether the cue did so before it

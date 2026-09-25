@@ -269,7 +269,7 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
    const pip=new THREE.Mesh(new THREE.SphereGeometry(3,12,8),mat());pip.position.set(tx(px),4,tz(py));ghostGroup.add(pip)
   }
   for(const o of shapeOf(pl.item,pl.pos.x,pl.pos.y,pl.rot)){
-   if(o.t==='bumper'||o.t==='mine'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,o.t==='mine'?3:16,24),mat());m.position.set(tx(o.x),8,tz(o.y));ghostGroup.add(m)}
+   if(o.t==='bumper'||o.t==='mine'||o.t==='pit'||o.t==='ball'||o.t==='fan'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,o.t==='bumper'?16:3,24),mat());m.position.set(tx(o.x),8,tz(o.y));ghostGroup.add(m)}
    else{const len=Math.hypot(o.x2-o.x1,o.y2-o.y1)+WALL_R*2,m=new THREE.Mesh(new THREE.BoxGeometry(len,12,WALL_R*2),mat());m.position.set(tx((o.x1+o.x2)/2),6,tz((o.y1+o.y2)/2));m.rotation.y=-Math.atan2(o.y2-o.y1,o.x2-o.x1);ghostGroup.add(m)}
   }
  }
@@ -281,8 +281,10 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
   for(const m of [...obsGroup.children]){obsGroup.remove(m);m.geometry?.dispose();m.material?.dispose?.()}
   let pi=0
   for(const o of list){
-   if(o.t==='bumper'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,16,28),new THREE.MeshStandardMaterial({color:'#9aa0a3',metalness:.7,roughness:.3}));m.position.set(tx(o.x),8,tz(o.y));obsGroup.add(m)}
+   if(o.t==='bumper'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,16,28),new THREE.MeshStandardMaterial({color:o.vol!==undefined?'#c2410c':o.piggy?'#f472b6':'#9aa0a3',emissive:o.vol!==undefined?'#ff5a1f':'#000000',emissiveIntensity:o.vol!==undefined?.5:0,metalness:.7,roughness:.3}));m.position.set(tx(o.x),8,tz(o.y));obsGroup.add(m)}
    else if(o.t==='wall'){const len=Math.hypot(o.x2-o.x1,o.y2-o.y1)+WALL_R*2,m=new THREE.Mesh(new THREE.BoxGeometry(len,12,WALL_R*2),new THREE.MeshStandardMaterial({color:'#d8c58c',roughness:.5}));m.position.set(tx((o.x1+o.x2)/2),6,tz((o.y1+o.y2)/2));m.rotation.y=-Math.atan2(o.y2-o.y1,o.x2-o.x1);obsGroup.add(m)}
+   else if(o.t==='fan'){const disc=new THREE.Mesh(new THREE.CircleGeometry(o.r,40),new THREE.MeshBasicMaterial({color:'#bfe9ff',transparent:true,opacity:.18,depthWrite:false})),shaft=new THREE.Mesh(new THREE.BoxGeometry(34,2,3),new THREE.MeshBasicMaterial({color:'#dff6ff'})),head=new THREE.Mesh(new THREE.ConeGeometry(7,14,3),new THREE.MeshBasicMaterial({color:'#dff6ff'}));disc.rotation.x=-Math.PI/2;disc.position.set(tx(o.x),.8,tz(o.y));shaft.position.set(tx(o.x),2,tz(o.y));shaft.rotation.y=-o.rot;head.rotation.set(0,0,-Math.PI/2);const pivot=new THREE.Group();pivot.add(head);head.position.set(24,0,0);pivot.position.set(tx(o.x),2,tz(o.y));pivot.rotation.y=-o.rot;for(const q of [disc,shaft,pivot])obsGroup.add(q)}
+   else if(o.t==='pit'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,1.4,28),new THREE.MeshBasicMaterial({color:'#050807'}));m.position.set(tx(o.x),.8,tz(o.y));obsGroup.add(m)}
    else if(o.t==='pswitch'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,5,20),new THREE.MeshStandardMaterial({color:'#ffd75d',emissive:'#ffb300',emissiveIntensity:.5,roughness:.4}));m.position.set(tx(o.x),2.6,tz(o.y));obsGroup.add(m)}
    else if(o.t==='bonushole'){
     const disc=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,2,28),new THREE.MeshBasicMaterial({color:'#05100b'})),ring=new THREE.Mesh(new THREE.TorusGeometry(o.r+2,1.8,8,36),new THREE.MeshBasicMaterial({color:'#5bd6ff'})),icon=o.reward.item?new THREE.Mesh(new THREE.BoxGeometry(R*1.1,R*1.1,R*1.1),new THREE.MeshStandardMaterial({color:ITEM_COLOR,emissive:ITEM_COLOR,emissiveIntensity:.4})):new THREE.Mesh(new THREE.OctahedronGeometry(R*.8),new THREE.MeshStandardMaterial({color:GEM_COLOR,emissive:GEM_COLOR,emissiveIntensity:.5}))

@@ -9,7 +9,8 @@ import {useItem,whyNotItem} from './economy.js'
 export const TOSS_RANGE=280            // furthest a toss can go from the cue ball
 export const SCATTER=.12               // the landing strays up to this fraction of the distance thrown
 export const SMOKE_R=58,SMOKE_LIFE=[1,3]
-export const TOSSABLE=['bomb','mortar','smokebomb']
+export const TOSSABLE=['bomb','mortar','smokebomb','cluster','piggybank']
+export const PIGGY_GEMS=[25,45],PIGGY_R=11,PIGGY_LIFE=6,CLUSTER_SIZE=5
 export const isTossable=id=>TOSSABLE.includes(id)
 
 // What each tossed item does where it comes down. A blast throws the balls around it outward (see chaos.js `blast`).
@@ -19,7 +20,9 @@ export const isTossable=id=>TOSSABLE.includes(id)
 export const EFFECTS={
  bomb:     {kind:'blast',radius:7*R,power:1000,skid:24},
  mortar:   {kind:'blast',radius:5*R,power:1500,skid:0},
- smokebomb:{kind:'smoke'}
+ smokebomb:{kind:'smoke'},
+ cluster:  {kind:'cluster'},
+ piggybank:{kind:'piggy'}
 }
 
 // Where a toss aimed at `target` from the cue ball actually lands. `rand` is injectable.

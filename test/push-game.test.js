@@ -14,7 +14,8 @@ function game(extra={}){
  Object.assign(g,{mode:'push',turn:'a',phase:'aim',over:false,result:'',finished:false,round:1,groups:{a:null,b:null},
   assignment:null,breakShot:false,calledPocket:null,ballInHand:false,placed:false,practice:true,hotSeat:true,names:{a:'A',b:'B'},ready:true,me:'a',host:true,
   shots:{a:0,b:0},acc:0,flash:m=>flashes.push(m),setSpin(){},send(){},onSave(){},onFinish(){},onShot(){},onReplay(){},score:{a:0,b:0},breaker:'a',
-  balls:rack('push'),power:{value:50},spin:{a:0,b:0},aiming:true,angle:0,fx:null,push:freshPush(),
+  balls:rack('push'),power:{value:50},spin:{a:0,b:0},aiming:true,angle:0,fx:null,push:freshPush(),dealRand:()=>.99,   // .99: nothing is dealt between turns, so a test sees only what it set up
+  
   house:{race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false},...extra})
  g.sync();return {g,flashes}
 }
@@ -285,7 +286,7 @@ test('a black hole swallows a ball, and the ball is on the table again when the 
 test('a hurricane rains dummy balls onto the table',()=>{
  let seen=0
  for(let i=0;i<1500&&!seen;i++){
-  const {g}=game({push:{...freshPush(),turns:1}});clear(g);g.balls[0].on=true;g.balls[0].x=154;g.balls[0].y=190
+  const {g}=game({dealRand:null,push:{...freshPush(),turns:1}});clear(g);g.balls[0].on=true;g.balls[0].x=154;g.balls[0].y=190
   g.pushAfterShot('a',{levelUps:0,nextTurn:'b',foul:true})
   seen=g.balls.filter(b=>b.k==='dummy').length
   assert.ok(g.balls.every(b=>b.k!=='dummy'||(b.n>=100&&b.on)))
@@ -327,4 +328,60 @@ test('a P switch is set off by the cue ball alone and turns every dummy into a g
  const c2=h.balls[0];c2.on=true;c2.x=200;c2.y=250;put(h,14,600,330);put(h,15,620,300);const o=put(h,1,350,150);o.vx=0
  h.balls.push(makeDummy(100,200,300))
  h.mineCheck();h.switchCheck();assert.equal(h.push.obstacles.length,1,'a ball on top of the switch is not the cue ball')
+})
+
+// ---- fan, hole, volcano, barf, piggy bank, cluster, ping-pong in a game ----
+test('a placed fan blows the next shot off line, then goes with the turn',()=>{
+ const run=fan=>{
+  const {g}=game({push:{...freshPush(),obstacles:fan?[{t:'fan',x:300,y:190,r:90,rot:Math.PI/2,ttl:1}]:[]}});g.syncObstacles();clear(g)
+  const cue=g.balls[0];cue.on=true;cue.x=150;cue.y=190;put(g,14,600,330);put(g,15,620,300);const t=put(g,1,300,190)
+  strike(cue,400,0);g.startShot();roll(g,5);return {t,g}
+ }
+ const plain=run(false),blown=run(true)
+ assert.ok(blown.t.y>plain.t.y+5,'pushed toward +y by the fan');assert.equal(blown.g.push.obstacles.length,0,'the fan lasted one shot')
+})
+
+test('a cluster breaks into five dummy balls where it lands; a piggy bank spills gems, then is empty and gone',()=>{
+ const {g}=tossing(['cluster','piggybank']);clear(g);g.balls[0].on=true;g.balls[0].x=200;g.balls[0].y=190;put(g,14,600,330)
+ g.applyToss('a','cluster',{x:320,y:190})
+ assert.equal(g.balls.filter(b=>b.k==='dummy').length,5);assert.equal(g.phase,'aim')
+ g.applyToss('a','piggybank',{x:320,y:300})
+ const pig=g.push.obstacles.find(o=>o.piggy>0);assert.ok(pig,'the piggy bank is on the table');assert.ok(g.push.pickups.length>=1,'thrown, it spilled some gems at once')
+ let guard=0;while(g.push.obstacles.some(o=>o.piggy>0)&&guard++<60)g.dispense(g.push.obstacles.find(o=>o.piggy>0))
+ assert.equal(g.push.obstacles.some(o=>o.piggy>0),false,'empty: gone')
+})
+
+test('a ball hitting a piggy bank spills gems',()=>{
+ const pig={t:'bumper',x:400,y:190,r:11,piggy:40,ttl:5}
+ const {g}=game({push:{...freshPush(),obstacles:[pig]}});g.syncObstacles();clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=250;cue.y=190;put(g,14,600,330);put(g,15,620,300);put(g,1,600,60)
+ strike(cue,500,0);g.startShot();roll(g,5)
+ const left=g.push.obstacles.find(o=>o.piggy>0);assert.ok(!left||left.piggy<40,'some spilled')
+})
+
+test('a volcano blasts and rains dummies when it appears, and the table settles before play resumes',()=>{
+ let done=false
+ for(let i=0;i<4000&&!done;i++){
+  const {g:h}=game({dealRand:null,push:{...freshPush(),turns:1}});clear(h);h.balls[0].on=true;h.balls[0].x=154;h.balls[0].y=190;put(h,14,600,330);put(h,15,620,300)
+  h.pushAfterShot('a',{levelUps:0,nextTurn:'b',foul:true})
+  if(h.push.obstacles.some(o=>o.vol!==undefined)){
+   assert.equal(h.balls.filter(b=>b.k==='dummy').length>=1,true,'dummies were spewed');assert.equal(h.tossing,true,'balls are settling');done=true
+   roll(h,4);assert.equal(h.tossing,false);assert.equal(h.phase,'aim')
+  }
+ }
+ assert.ok(done,'a volcano appeared within four thousand tries')
+})
+
+test('a barf gives back what the pockets last swallowed',()=>{
+ const {g}=game();clear(g);g.balls[0].on=true;g.balls[0].x=154;g.balls[0].y=190
+ const potted=g.balls[3];potted.on=false
+ g.pocketLog=[{p:1,n:potted.n,k:potted.k},{p:1,n:-1,k:'dummy'}]
+ g.barf()
+ assert.equal(potted.on,true,'the real ball is back');assert.ok(g.balls.some(b=>b.k==='dummy'),'and a dummy was made anew');assert.equal(g.pocketLog.length,0)
+})
+
+test('a ping-pong ball placed on the table is a dummy ball',()=>{
+ const {g}=game({push:{...freshPush(),a:{powers:{},items:['pingpong'],picks:0}}});g.canControl=()=>true;clear(g);g.balls[0].on=true;g.balls[0].x=200;g.balls[0].y=190
+ g.startPlacing('pingpong');g.movePlacing({x:250,y:150});g.confirmPlace()
+ assert.equal(g.balls.filter(b=>b.k==='dummy').length,1);assert.deepEqual(g.push.a.items,[]);assert.equal(g.push.drops,undefined)
 })
