@@ -40,6 +40,8 @@ export function isGameMessage(m){
  if(TOP_BALL[mode]&&!m.b.every(b=>b[4]<=TOP_BALL[mode]))return false   // nine-ball is balls 0-9, ten-ball 0-10
  if(!validTwist(m.fx))return false
  if(!validPush(m.push))return false
+ // the last callout the host showed (P.U.S.H. Pool), so a guest sees the same ones: an id to show each once, some text, a sound
+ if(m.fm!==undefined&&m.fm!==null&&!(typeof m.fm==='object'&&Number.isInteger(m.fm.id)&&typeof m.fm.text==='string'&&m.fm.text.length<=120&&(m.fm.sound===null||m.fm.sound==='boom'||m.fm.sound==='chime')))return false
  // the score of a scored game: two small whole numbers, and absent before those games existed
  if(m.score!==undefined&&!(m.score&&typeof m.score==='object'&&['a','b'].every(p=>Number.isInteger(m.score[p])&&m.score[p]>=-99&&m.score[p]<=999)))return false
  return m.groups&&['a','b'].every(p=>m.groups[p]===null||m.groups[p]==='solid'||m.groups[p]==='stripe')

@@ -107,6 +107,13 @@ export function createSfx(){
   cue(v){const n=Math.min(1,v),t=ctx.currentTime
    burst(t,.03,1100,1.6,.12+n*.25)
    tone(t,.05,700,260,.05+n*.2)},
+  // P.U.S.H. Pool: a blast (a low thump under a burst of noise) and a pickup (two rising notes)
+  boom(){const t=ctx.currentTime
+   burst(t,.38,220,.6,.55,'lowpass')
+   tone(t,.42,130,32,.55,'sine')},
+  chime(){const t=ctx.currentTime
+   tone(t,.12,880,1320,.16,'sine')
+   tone(t+.08,.2,1320,1760,.13,'sine')},
   result(won){const t=ctx.currentTime
    if(won){
     ;[0, .12, .25].forEach((d,i)=>tone(t+d,.31,523+i*131,523+i*131,.24,'sine'))
@@ -142,6 +149,8 @@ export function createSfx(){
    const c=audio();if(c?.state==='suspended')c.resume().then(playResult).catch(()=>{});else playResult()
   },
   cue(v){buzz(7,.7+v*.45);if(!enabled||!audio()||ctx.state!=='running')return;try{play.cue(v)}catch{}},
+  boom(){buzz(24,1);if(!enabled||!audio()||ctx.state!=='running')return;try{play.boom()}catch{}},
+  chime(){buzz(6,.6);if(!enabled||!audio()||ctx.state!=='running')return;try{play.chime()}catch{}},
   update(balls){
    const events=(enabled||haptics)?detectEvents(prev,balls):[]
    prev=snapshot(balls)

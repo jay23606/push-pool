@@ -717,3 +717,16 @@ test('on a touch screen a tap stages the placement and a second tap on the ghost
  g.push={...g.push,a:{...g.push.a,items:['wall']}};g.startPlacing('wall')
  down(230,140,'mouse');assert.equal(g.placing,null,'a mouse click places at once, as before')
 })
+
+// ---- callouts and sounds reach the guest ----
+test('the host records each callout with its sound, so a guest sees and hears it too',()=>{
+ const {g}=game();const heard=[];g.flash=PoolGame.prototype.flash
+ g.callout={textContent:'',classList:{add(){},remove(){}}};g.sfx={boom:()=>heard.push('boom'),chime:()=>heard.push('chime')}
+ g.flash('BOOM');assert.deepEqual(g.fm,{id:1,text:'BOOM',sound:'boom'})
+ g.flash('Picked up Bomb');assert.equal(g.fm.sound,'chime');assert.equal(g.fm.id,2)
+ g.flash('+5');assert.equal(g.fm.sound,'chime');g.flash('Ball 3 potted');assert.equal(g.fm.sound,null);g.flash('A volcano erupts!');assert.equal(g.fm.sound,'boom')
+ assert.deepEqual(heard,['boom','chime','chime','boom'])
+ const wire=JSON.parse(JSON.stringify(snapshotOf(g)));assert.deepEqual(wire.fm,g.fm);assert.ok(isGameMessage(wire))
+ for(const bad of [{id:'1',text:'x',sound:null},{id:1,text:5,sound:null},{id:1,text:'x',sound:'bang'},{id:1,text:'x'.repeat(200),sound:null}])assert.equal(isGameMessage({...wire,fm:bad}),false,JSON.stringify(bad))
+ const {g:plain}=game({mode:'8ball'});plain.flash=PoolGame.prototype.flash;plain.callout={textContent:'',classList:{add(){},remove(){}}};plain.flash('BOOM');assert.equal(plain.fm,undefined,'other modes are untouched')
+})

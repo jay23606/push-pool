@@ -215,8 +215,11 @@ export class PoolGame{
   // what the player has chosen and not yet played: the pocket they called, and where they put the cue ball
   const myCall=this.calledPocket,myPlace=this.pendingPlace,mine=!this.host&&this.turn===this.me
   const prior=this.phase==='aim'&&this.gotState&&!freshRound&&!this.rec?this.beforeState:null
+  const seenFm=this.fm?.id
   applySnapshot(this,m)
   this.gotState=true
+  // a callout the host showed since the last state: show it here too, with its sound (once)
+  if(m.fm&&m.fm.id!==this.fmSeen&&m.fm.id!==seenFm){this.fmSeen=m.fm.id;this.callout.textContent=m.fm.text;this.callout.classList.add('show');clearTimeout(this.ft);this.ft=setTimeout(()=>this.callout.classList.remove('show'),1000);if(m.fm.sound)this.sfx?.[m.fm.sound]?.()}
   // A shot can be over before the host's first snapshot of it goes out (a cue ball
   // hit into a pocket beside it): this side then never sees a roll, only a table
   // that changed hands, and would report nothing. Turn or balls changing with no
@@ -1008,6 +1011,14 @@ export class PoolGame{
   try{this.draw(frameDt,replayed)}
   catch(e){if(!this.loggedDrawError){this.loggedDrawError=true;console.error('a frame failed to draw',e)}}
  }
- flash(s){this.callout.textContent=s;this.callout.classList.add('show');clearTimeout(this.ft);this.ft=setTimeout(()=>this.callout.classList.remove('show'),1000)}
+ flash(s){
+  this.callout.textContent=s;this.callout.classList.add('show');clearTimeout(this.ft);this.ft=setTimeout(()=>this.callout.classList.remove('show'),1000)
+  // P.U.S.H. Pool: the host's callouts (and their sounds) go to the guest in the next state, so both see what happened
+  if(isPush(this.mode)&&this.host){
+   const sound=/BOOM|erupt|CANNON|Swallowed/i.test(s)?'boom':/Picked up|^\+\d|Bonus|Gems|Double|Triple|Five balls/i.test(s)?'chime':null
+   this.fm={id:(this.fm?.id||0)+1,text:String(s).slice(0,120),sound}
+   if(sound)this.sfx?.[sound]?.()
+  }
+ }
  destroy(){this.pushPanel?.remove();this.pushPanel=null;setObstacles([]);clearTimeout(this.retryTimer);cancelAnimationFrame(this.raf);clearInterval(this.background);clearTimeout(this.ft);this.unbindInput?.()}
 }
