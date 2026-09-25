@@ -146,3 +146,49 @@ test('a guest asks the host to place, and only the player whose turn it is gets 
  const {g:h}=game({turn:'a',push:{...freshPush(),b:{powers:{},items:['pillar'],picks:0}}})
  h.receive({t:'place',item:'pillar',x:230,y:150,rot:0});assert.equal(h.push.obstacles.length,0,'not b\'s turn')
 })
+
+// ---- armed powers ----
+const owning=(powers,points=100)=>game({score:{a:points,b:0},push:{...freshPush(),a:{powers,items:[],picks:0}}})
+
+test('arming steps a power through the levels you own and back off; only armable powers, only yours',()=>{
+ const {g}=owning({pop:2,guide:1});g.canControl=()=>true
+ g.cycleArm('pop');assert.deepEqual(g.armed,{pop:1});g.cycleArm('pop');assert.deepEqual(g.armed,{pop:2})
+ g.cycleArm('pop');assert.deepEqual(g.armed,{},'past your level it switches off')
+ g.cycleArm('guide');g.cycleArm('stink');assert.deepEqual(g.armed,{},'not armable / not owned')
+})
+
+test('an armed power is paid for when the shot is taken, at the level chosen',()=>{
+ const {g}=owning({pop:2,stink:1},100);clear(g)
+ g.applyArmed({pop:2,stink:1})
+ assert.equal(g.score.a,100-45-20);assert.equal(g.shotFx.pop.force,400);assert.equal(g.shotFx.stink.level,1)
+ const {g:poor}=owning({pop:1},10);poor.applyArmed({pop:1});assert.equal(poor.score.a,10,'cannot afford it: skipped, nothing spent');assert.equal(poor.shotFx,null)
+ const {g:none}=owning({},100);none.applyArmed({pop:1});assert.equal(none.score.a,100,'not owned')
+})
+
+test('stink pushes the balls near the cue ball away, cute pulls them in, and both only while armed',()=>{
+ const run=fx=>{
+  const {g}=owning({},0);clear(g);const cue=g.balls[0];cue.on=true;cue.x=300;cue.y=190
+  const o=put(g,1,340,190);put(g,14,600,330);put(g,15,620,300);g.shotFx=fx
+  for(let i=0;i<30;i++)g.shotEffects(1/120);return o.vx
+ }
+ assert.ok(run({stink:{force:300}})>1,'pushed away (to the right)')
+ assert.ok(run({cute:{force:300}})<-1,'pulled toward the cue ball (to the left)')
+ assert.equal(run(null),0,'nothing without the power')
+ const {g}=owning({},0);clear(g);g.balls[0].on=true;g.balls[0].x=300;g.balls[0].y=190;const far=put(g,1,300+90,190);g.shotFx={stink:{force:500}};g.shotEffects(.1);assert.equal(far.vx,0,'out of reach')
+})
+
+test('pop blasts the balls next to the cue ball when it collides, but only a few times a shot',()=>{
+ const {g}=owning({},0);clear(g);const cue=g.balls[0];cue.on=true;cue.x=300;cue.y=190
+ const near=put(g,1,325,190);g.shotFx={pop:{force:400}};g.pops=0
+ g.popped();assert.ok(near.vx>1,'thrown away from the cue ball')
+ for(let i=0;i<10;i++)g.popped();assert.equal(g.pops,6,'capped')
+ g.shotFx=null;near.vx=0;g.popped();assert.equal(near.vx,0)
+})
+
+test('a shot with pop armed clears it from the table when the shot ends, and never leaks into the next',()=>{
+ const {g}=owning({pop:1},100);clear(g);g.canControl=()=>true
+ const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250;put(g,1,350,150);put(g,14,600,330);put(g,15,620,300)
+ g.cycleArm('pop');g.applyArmed(g.armed);g.armed={}
+ strike(cue,0,-900);g.startShot();roll(g)
+ assert.equal(g.shotFx,null);assert.equal(g.score.a>=100-25,true,'the power was paid for once')
+})

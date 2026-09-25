@@ -4,9 +4,9 @@ import {integrate,railBounce,ballCollide,substeps,atRest,clearMotion,strike,shot
 import {normalizeHouse,nextBreaker,placementLimit} from './house.js'
 import {airborne} from './physics.js'
 import {drawTwist,blast,wellPull,bonusPocket,twistName} from './chaos.js'
-import {collectPickups,afterShot,choosePower,payPower} from './push/logic.js'
+import {collectPickups,afterShot,choosePower,payPower,payArmed} from './push/logic.js'
 import {renderPushPanel} from './push/panel.js'
-import {powerCost} from './push/powers.js'
+import {powerCost,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS} from './push/powers.js'
 import {placeItem,whyNotPlace,isPlaceable} from './push/placing.js'
 import {ITEMS} from './push/items.js'
 import {newRun as newRogueRun,judge as judgeRogue,choose as chooseRogue,advance as advanceRogue,offer as offerRogue,POCKET_BOOST} from './rogue.js'
@@ -177,7 +177,9 @@ export class PoolGame{
   const jump=this.jumpAllowed()&&Boolean(this.jumpOn)
   this.jumpOn=false;this.usedJump=jump
   if(jump&&this.host&&this.mode==='push')this.payJump()
-  this.startShot();if(this.host)strike(this.balls[0],vx,vy,spin[0],spin[1],jump);else this.send({t:'shot',vx,vy,spin,place:this.pendingPlace,called,...(jump?{jump:true}:{})});this.pendingPlace=null}
+  const armed=this.mode==='push'&&Object.keys(this.armed||{}).length?{...this.armed}:null;this.armed={}
+  if(armed&&this.host)this.applyArmed(armed)
+  this.startShot();if(this.host)strike(this.balls[0],vx,vy,spin[0],spin[1],jump);else this.send({t:'shot',vx,vy,spin,place:this.pendingPlace,called,...(jump?{jump:true}:{}),...(armed?{powers:armed}:{})});this.pendingPlace=null}
  startShot(){if(this.chal&&this.chal.startedAt==null)this.chal=startClock(this.chal,performance.now());this.shots??={a:0,b:0};this.shots[this.turn]=(this.shots[this.turn]||0)+1;this.placed=false;this.potted=[];this.firstObjectPotted=null;this.scratch=false;this.firstHit=null;this.before=this.group()?this.remaining(this.group()):null;this.lowest=lowestBall(this.balls);this.railHit=false;this.pocketOf={};this.railBalls=new Set();this.cueRailFirst=false;this.phase='roll';this.noteRecording(true)}
  receive(m){
   if(!isGameMessage(m))return
@@ -232,6 +234,7 @@ export class PoolGame{
   this.calledPocket=this.canCallEight()?(m.called??null):null
   const jump=Boolean(m.jump)&&this.jumpAllowed()
   if(jump&&this.mode==='push')this.payJump()
+  if(this.mode==='push'&&m.powers)this.applyArmed(m.powers)
   this.startShot();strike(this.balls[0],m.vx,m.vy,m.spin?.[0]||0,m.spin?.[1]||0,jump)
  }
  // Hot-seat: two people share one device. Whoever's turn it is is "me" -- every rule and every
@@ -382,6 +385,38 @@ export class PoolGame{
   const next=placeItem(this.push,player,item,spot,this.placeCtx());if(next===this.push)return
   this.push=next;this.syncObstacles();this.sync();this.flash(ITEMS[item].name+' placed')
  }
+ // Powers armed before a shot. Clicking a power in the panel steps it through its levels and back off.
+ cycleArm(id){
+  const me=this.hotSeat?this.turn:this.me
+  if(this.mode!=='push'||!this.push||this.turn!==me||!this.canControl()||!isArmable(id))return
+  const owned=this.push[me].powers[id]||0;if(!owned)return
+  const cur=this.armed?.[id]||0,next=cur+1>owned?0:cur+1,armed={...this.armed}
+  if(next)armed[id]=next;else delete armed[id]
+  this.armed=armed
+ }
+ applyArmed(armed){
+  const r=payArmed(this.push,this.score,this.turn,armed)
+  this.score=r.score;this.shotFx=Object.keys(r.applied).length?r.applied:null;this.pops=0
+  const names=Object.keys(r.applied);if(names.length)this.flash(names.map(id=>id[0].toUpperCase()+id.slice(1)).join(' + '))
+ }
+ // What an armed power does while the balls roll: stink and cute push or pull the balls near the cue ball, pop blasts on contact.
+ shotEffects(dt){
+  const fx=this.shotFx,cue=this.balls[0];if(!fx||!cue.on)return
+  for(const [id,sign] of [['stink',1],['cute',-1]]){
+   if(!fx[id])continue
+   for(const b of this.balls){
+    if(b===cue||!b.on)continue
+    const dx=b.x-cue.x,dy=b.y-cue.y,d=Math.hypot(dx,dy)
+    if(!(d>1)||d>=FIELD_RADIUS)continue
+    const a=fx[id].force*(1-d/FIELD_RADIUS)*sign*dt
+    b.vx+=dx/d*a;b.vy+=dy/d*a
+   }
+  }
+ }
+ popped(){
+  const fx=this.shotFx;if(!fx?.pop||(this.pops||0)>=MAX_POPS)return
+  this.pops=(this.pops||0)+1;blast(this.balls,this.balls[0],{radius:POP_RADIUS_R*R,power:fx.pop.force})
+ }
  payJump(){
   const r=payPower(this.push,this.score,this.turn,'jump',1,'before')
   if(r.ok){this.score=r.score;this.flash('Jump · -'+powerCost('jump',1))}
@@ -395,7 +430,7 @@ export class PoolGame{
   this.flash(items.length?'Picked up '+ITEMS[items[0].id].name:'+'+gems)
  }
  sub(dt){
-  this.collect()
+  this.collect();this.shotEffects(dt)
   const well=this.fx&&this.fx.type==='well'?this.fx:null,pockets=this.pocketList(),scale=this.pocketScale()
   for(const b of this.balls){
    if(!b.on)continue
@@ -417,6 +452,7 @@ export class PoolGame{
    if(ballCollide(a,b)){
     if(!this.firstHit){if(a.k==='cue')this.firstHit=b;else if(b.k==='cue')this.firstHit=a}
     if(this.fx&&this.fx.type==='bomb'&&!this.fx.spent&&(a.n===this.fx.n||b.n===this.fx.n))this.explode()
+    if(this.shotFx&&(a.k==='cue'||b.k==='cue'))this.popped()
    }
   }}
  pottedMessage(b){
@@ -499,6 +535,7 @@ export class PoolGame{
   if(v.foul)this.foul(v.reason)
   else if(v.nextTurn!==shooter){this.turn=v.nextTurn;this.calledPocket=null}
   this.breakShot=false;this.balls.forEach(clearMotion);this.phase='aim'
+  this.shotFx=null
   if(this.mode==='push')this.pushAfterShot(shooter,v)
   this.newTwist()
   this.sync()

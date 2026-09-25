@@ -16,6 +16,14 @@ export const POWERS={
  cute:  {name:'Cute',  when:'before',blurb:'The cue ball pulls other balls toward it.',levels:lv([20,38,65],'force',[150,300,500])},
  nudge: {name:'Nudge', when:'before',blurb:'A small tap of the cue ball instead of a shot; it can swing a game.',levels:lv([40,70,110],'reach',[1,2,3])}
 }
+// The powers you switch on before a shot, and pay for when you take it. Each has a working effect in the game;
+// the rest of the catalogue is still being built. (Jump has its own button.)
+export const ARMABLE=['pop','stink','cute']
+export const isArmable=id=>ARMABLE.includes(id)
+export const FIELD_RADIUS=70          // how far a stink or cute cue ball reaches
+export const POP_RADIUS_R=4            // a pop is a small blast: this many ball radii
+export const MAX_POPS=6                // per shot, so a long cascade cannot run away
+
 export const POWER_IDS=Object.keys(POWERS)
 export const MAX_LEVEL=3
 

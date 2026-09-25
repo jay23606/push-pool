@@ -345,3 +345,21 @@ test('a malformed obstacle drops the state message',()=>{
  assert.equal(validPush({...good,obstacles:[{t:'wall',x1:1,y1:1,x2:'a',y2:1,ttl:1}]}),false)
  assert.equal(validPush({...good,obstacles:Array.from({length:61},()=>({t:'bumper',x:1,y:1,r:1,ttl:1}))}),false)
 })
+
+// ---- armed powers on the wire and in the logic ----
+import {payArmed} from '../src/push/logic.js'
+test('payArmed charges each power in turn and skips what cannot go through',()=>{
+ const push=withPush({a:{powers:{pop:1,cute:2,guide:1},items:[],picks:0}})
+ const r=payArmed(push,{a:100,b:0},'a',{pop:1,cute:2,guide:1,stink:1})
+ assert.deepEqual(Object.keys(r.applied).sort(),['cute','pop'],'guide is not armable, stink is not owned')
+ assert.equal(r.score.a,100-25-38);assert.equal(r.applied.cute.force,300)
+ const tight=payArmed(push,{a:40,b:0},'a',{pop:1,cute:2})
+ assert.deepEqual(Object.keys(tight.applied),['pop'],'the second is skipped once the first has been paid');assert.equal(tight.score.a,15)
+ assert.deepEqual(payArmed(push,{a:100,b:0},'a',null).applied,{})
+})
+
+test('a shot message may carry armed powers, and a malformed set is refused',()=>{
+ const shotMsg=o=>({t:'shot',vx:1,vy:2,spin:[0,0],...o})
+ assert.ok(isGameMessage(shotMsg({powers:{pop:2,stink:1}})));assert.ok(isGameMessage(shotMsg({})))
+ for(const bad of [{pop:9},{fly:1},{pop:1.5},[],'pop',{pop:'1'}])assert.equal(isGameMessage(shotMsg({powers:bad})),false,JSON.stringify(bad))
+})
