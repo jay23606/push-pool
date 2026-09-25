@@ -17,6 +17,7 @@ const expectedGroup=n=>n===0?'cue':n===8?'eight':n<8?'solid':'stripe'
 export function isGameMessage(m){
  if(!m||typeof m!=='object'||typeof m.t!=='string')return false
  if(m.t==='next-rack')return true
+ if(m.t==='toss')return typeof m.item==='string'&&m.item.length<=20&&finite(m.x)&&finite(m.y)
  if(m.t==='place')return typeof m.item==='string'&&m.item.length<=20&&finite(m.x)&&finite(m.y)&&finite(m.rot)
  if(m.t==='pick')return typeof m.id==='string'&&m.id.length<=20
  if(m.t==='table')return finite(m.size)&&typeof m.felt==='string'

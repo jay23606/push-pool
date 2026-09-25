@@ -1,5 +1,6 @@
 import {W,H,R,PR,POCKETS,COLORS,DUMMY_COLOR,GEM_COLOR,ITEM_COLOR} from './table.js'
 import {shapeOf,RANGE} from './push/placing.js'
+import {TOSS_RANGE,scatterAt} from './push/toss.js'
 import {ITEMS} from './push/items.js'
 import {rayToRail,bankPath} from './pool.js'
 import {tableFractions} from './screen-point.js'
@@ -34,10 +35,15 @@ export function createRenderer2D(canvas,options={}){
    g.fillStyle='#07100c'
    const pk=game.pocketScale?game.pocketScale():1
    POCKETS.forEach(([x,y],i)=>{g.beginPath();g.arc(x,y,(PR-2)*pk,0,7);g.fill();if((game.markedPocket?game.markedPocket():game.calledPocket)===i){g.strokeStyle='#ffd75d';g.lineWidth=3;g.beginPath();g.arc(x,y,PR+3,0,7);g.stroke()}if(game.snapMark&&game.snapMark()===i){g.strokeStyle='#ffffffb0';g.lineWidth=2;g.beginPath();g.arc(x,y,PR+1,0,7);g.stroke()}})
+   for(const o of game.push?.obstacles||[])if(o.t==='smoke'){const gr=g.createRadialGradient(o.x,o.y,4,o.x,o.y,o.r);gr.addColorStop(0,'rgba(200,200,205,.8)');gr.addColorStop(1,'rgba(200,200,205,.15)');g.fillStyle=gr;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill()}
    for(const o of game.push?.obstacles||[])if(o.t==='mine'){g.fillStyle='#2a0b0b';g.strokeStyle='#ff5a3c';g.lineWidth=2;g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke();g.fillStyle='#ff5a3c';g.beginPath();g.arc(o.x,o.y,2.5,0,7);g.fill()}
    if(game.placing?.pos&&game.phase==='aim'){
     const pl=game.placing,cue=game.balls[0],ok=game.placingOk(),col=ok?'#5dff9a':'#ff5d5d'
-    g.save();g.setLineDash([5,5]);g.strokeStyle='rgba(255,255,255,.45)';g.lineWidth=1.5;g.beginPath();g.arc(cue.x,cue.y,RANGE[ITEMS[pl.item].range],0,7);g.stroke();g.restore()
+    g.save();g.setLineDash([5,5]);g.strokeStyle='rgba(255,255,255,.45)';g.lineWidth=1.5;g.beginPath();g.arc(cue.x,cue.y,pl.toss?TOSS_RANGE:RANGE[ITEMS[pl.item].range],0,7);g.stroke();g.restore()
+    if(pl.toss){
+     const dx=pl.pos.x-cue.x,dy=pl.pos.y-cue.y,d=Math.hypot(dx,dy)||1,k=Math.min(1,TOSS_RANGE/d),tx=cue.x+dx*k,ty=cue.y+dy*k
+     g.strokeStyle=col;g.lineWidth=2;g.beginPath();g.moveTo(cue.x,cue.y);g.lineTo(tx,ty);g.stroke();g.beginPath();g.arc(tx,ty,Math.max(3,scatterAt(cue,pl.pos)),0,7);g.stroke();g.beginPath();g.arc(tx,ty,3,0,7);g.fill()
+    }
     g.strokeStyle=col;g.fillStyle=ok?'rgba(93,255,154,.25)':'rgba(255,93,93,.25)';g.lineWidth=4
     for(const o of shapeOf(pl.item,pl.pos.x,pl.pos.y,pl.rot)){if(o.t==='bumper'){g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke()}else if(o.t==='mine'){g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke()}else{g.beginPath();g.moveTo(o.x1,o.y1);g.lineTo(o.x2,o.y2);g.stroke()}}
    }

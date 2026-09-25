@@ -363,3 +363,42 @@ test('a shot message may carry armed powers, and a malformed set is refused',()=
  assert.ok(isGameMessage(shotMsg({powers:{pop:2,stink:1}})));assert.ok(isGameMessage(shotMsg({})))
  for(const bad of [{pop:9},{fly:1},{pop:1.5},[],'pop',{pop:'1'}])assert.equal(isGameMessage(shotMsg({powers:bad})),false,JSON.stringify(bad))
 })
+
+// ---- tossing ----
+import {landing,scatterAt,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS,TOSS_RANGE,SCATTER,TOSSABLE,SMOKE_LIFE} from '../src/push/toss.js'
+
+test('a toss lands near where it was aimed, always strays a little, and never leaves the cloth or its range',()=>{
+ const cue=cueAt(200,190),seen=new Set()
+ for(let i=1;i<=300;i++){
+  const l=landing(cue,{x:400,y:190},BOUNDS,seeded(i)),d=Math.hypot(l.x-cue.x,l.y-cue.y)
+  assert.ok(Math.hypot(l.x-400,l.y-190)<=200*SCATTER+1,'within the scatter radius');seen.add(`${l.x},${l.y}`)
+  assert.ok(l.x>=BOUNDS.minx&&l.x<=BOUNDS.maxx&&l.y>=BOUNDS.miny&&l.y<=BOUNDS.maxy);assert.ok(d<=TOSS_RANGE*(1+SCATTER)+1)
+ }
+ assert.ok(seen.size>100,'the scatter is real')
+ const far=landing(cue,{x:2000,y:190},BOUNDS,seeded(1));assert.ok(far.x<=BOUNDS.maxx,'aimed past the range or the rail, it stays on the table')
+ assert.equal(landing(cue,{x:200,y:190},BOUNDS,seeded(1)).x,200,'aimed at the cue ball itself, no direction')
+ assert.equal(landing(cue,{x:400,y:190},BOUNDS,seeded(9)).x,landing(cue,{x:400,y:190},BOUNDS,seeded(9)).x,'deterministic for a seed')
+ assert.ok(scatterAt(cue,{x:300,y:190})<scatterAt(cue,{x:450,y:190}),'the further, the wilder')
+})
+
+test('toss rules: held, tossable, cue ball on the table; the item is used up',()=>{
+ const h=holding('bomb','wall');const c={cue:cueAt(200,190)}
+ assert.equal(whyNotToss(h,'a','bomb',c),null);assert.equal(whyNotToss(h,'a','wall',c),'not-tossable');assert.equal(whyNotToss(holding(),'a','bomb',c),'not-held')
+ assert.equal(whyNotToss(h,'a','bomb',{cue:{...cueAt(1,1),on:false}}),'no-cue')
+ assert.deepEqual(tossItem(h,'a','bomb',c).a.items,['wall']);assert.equal(tossItem(h,'a','wall',c),h)
+ assert.deepEqual(TOSSABLE,['bomb','mortar','smokebomb'])
+})
+
+test('a bomb skids on where it landed, a mortar goes off exactly there, and smoke is a cloud that lasts a few turns',()=>{
+ assert.deepEqual(skidTo({x:300,y:190},0,'mortar',BOUNDS),{x:300,y:190})
+ assert.ok(skidTo({x:300,y:190},0,'bomb',BOUNDS).x>300)
+ assert.ok(skidTo({x:655,y:190},0,'bomb',BOUNDS).x<=BOUNDS.maxx,'and stays on the cloth')
+ assert.ok(EFFECTS.mortar.power>EFFECTS.bomb.power&&EFFECTS.mortar.radius<EFFECTS.bomb.radius)
+ for(let i=1;i<=50;i++){const s=smokeAt({x:5,y:6},seeded(i));assert.equal(s.t,'smoke');assert.ok(s.ttl>=SMOKE_LIFE[0]&&s.ttl<=SMOKE_LIFE[1])}
+ assert.ok(validPush({...withPush(),obstacles:[smokeAt({x:5,y:6},seeded(1))]}))
+})
+
+test('the wire carries a toss request and refuses a malformed one',()=>{
+ assert.ok(isGameMessage({t:'toss',item:'bomb',x:300,y:190}))
+ for(const bad of [{t:'toss',item:'bomb',x:'a',y:1},{t:'toss',x:1,y:1},{t:'toss',item:'x'.repeat(30),x:1,y:1}])assert.equal(isGameMessage(bad),false)
+})

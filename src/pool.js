@@ -8,9 +8,11 @@ import {collectPickups,afterShot,choosePower,payPower,payArmed} from './push/log
 import {renderPushPanel} from './push/panel.js'
 import {powerCost,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS} from './push/powers.js'
 import {placeItem,whyNotPlace,isPlaceable,MINE_BLAST_R,MINE_BLAST_POWER} from './push/placing.js'
+import {isTossable,landing,whyNotToss,tossItem,skidTo,smokeAt,EFFECTS} from './push/toss.js'
+import {DUMMY_POINTS} from './push/dummy.js'
 import {ITEMS} from './push/items.js'
 import {newRun as newRogueRun,judge as judgeRogue,choose as chooseRogue,advance as advanceRogue,offer as offerRogue,POCKET_BOOST} from './rogue.js'
-import {other,remaining as countLeft,nearestPocket,validCueSpot,judgeShot,opposite,normalizeGroup,modeOf,lowestBall,nineRespot,MODES,isScoreMode,ONE_POCKET,targetFor,isRotation,MONEY,trianglePositions,kind} from './rules.js'
+import {other,remaining as countLeft,nearestPocket,validCueSpot,judgeShot,opposite,normalizeGroup,modeOf,lowestBall,nineRespot,MODES,isScoreMode,ONE_POCKET,targetFor,isRotation,MONEY,trianglePositions,kind,PUSH_POT} from './rules.js'
 import {chooseShot} from './ai.js'
 import {freshRackState,snapshotOf,applySnapshot} from './game-state.js'
 import {isGameMessage} from './protocol.js'
@@ -186,6 +188,7 @@ export class PoolGame{
   if(m.t==='table'&&!this.host)return this.onTable?.(m)
   if(m.t==='next-rack'&&this.host)return this.newRack()
   if(m.t==='pick'&&this.host&&this.turn==='b')return this.applyPick('b',m.id)
+  if(m.t==='toss'&&this.host&&this.turn==='b')return this.applyToss('b',m.item,{x:m.x,y:m.y})
   if(m.t==='place'&&this.host&&this.turn==='b')return this.applyPlace('b',m.item,{x:m.x,y:m.y,rot:m.rot})
   if(m.t==='state'&&!this.host)return this.receiveState(m)
   if(m.t==='shot'&&this.host&&this.turn==='b'&&this.phase==='aim')this.receiveShot(m)
@@ -364,21 +367,57 @@ export class PoolGame{
  }
  startPlacing(id){
   const me=this.hotSeat?this.turn:this.me
-  if(this.mode!=='push'||!this.push||this.turn!==me||!this.canControl()||this.ballInHand||!isPlaceable(id)||!this.push[me].items.includes(id))return false
-  this.placing={item:id,rot:0,pos:null};this.aiming=false;this.drag=false
-  this.flash('Click to place · Q/E or wheel to turn · Esc cancels');return true
+  if(this.mode!=='push'||!this.push||this.turn!==me||!this.canControl()||this.ballInHand||!(isPlaceable(id)||isTossable(id))||!this.push[me].items.includes(id))return false
+  const toss=isTossable(id)
+  this.placing={item:id,rot:0,pos:null,toss,drag:false};this.aiming=false;this.drag=false
+  this.flash(toss?'Drag out from the cue ball and let go · Esc cancels':'Click to place · Q/E or wheel to turn · Esc cancels');return true
  }
  cancelPlacing(){this.placing=null}
  turnPlacing(d){if(this.placing)this.placing.rot+=d}
  movePlacing(p){if(this.placing&&p)this.placing.pos={x:p.x,y:p.y}}
  placingSpot(){const pl=this.placing;return pl?.pos?{x:Math.round(pl.pos.x),y:Math.round(pl.pos.y),rot:Math.round(pl.rot*100)/100}:null}
- placingOk(){const s=this.placingSpot();return Boolean(s)&&!whyNotPlace(this.push,this.turn,this.placing.item,s,this.placeCtx())}
+ placingOk(){const s=this.placingSpot();if(s&&this.placing.toss)return !whyNotToss(this.push,this.turn,this.placing.item,this.placeCtx());return Boolean(s)&&!whyNotPlace(this.push,this.turn,this.placing.item,s,this.placeCtx())}
  confirmPlace(){
+  if(this.placing?.toss)return this.confirmToss()
   const spot=this.placingSpot();if(!spot)return
   const id=this.placing.item,why=whyNotPlace(this.push,this.turn,id,spot,this.placeCtx())
   if(why){this.flash({'too-far':'Too far from the cue ball','on-a-ball':'A ball is in the way','on-an-obstacle':'Something is already there','off-table':'That is off the cloth'}[why]||'Cannot place it there');return}
   this.placing=null
   if(this.host)this.applyPlace(this.turn,id,spot);else this.send({t:'place',item:id,...spot})
+ }
+ // Tossing: the drag gives a target, the host rolls where it really lands, and the effect happens there. A blast sets balls
+ // rolling, and when they stop the toss is settled (resolveToss): pots score for the tosser, who then takes the shot.
+ confirmToss(){
+  const spot=this.placingSpot();if(!spot)return
+  const id=this.placing.item;this.placing=null
+  if(whyNotToss(this.push,this.turn,id,this.placeCtx()))return
+  if(this.host)this.applyToss(this.turn,id,{x:spot.x,y:spot.y});else this.send({t:'toss',item:id,x:spot.x,y:spot.y})
+ }
+ applyToss(player,item,target){
+  if(!this.push||this.turn!==player||this.phase!=='aim'||this.tossing||!isTossable(item))return
+  const ctx=this.placeCtx(),next=tossItem(this.push,player,item,ctx);if(next===this.push)return
+  this.push=next
+  const spot=landing(ctx.cue,target,ctx.bounds),eff=EFFECTS[item]
+  if(eff.kind==='smoke'){
+   this.push={...this.push,obstacles:[...(this.push.obstacles||[]),smokeAt(spot)]};this.syncObstacles();this.sync();this.flash('Smoke bomb');return
+  }
+  const at=skidTo(spot,spot.dir,item,ctx.bounds),cue=this.balls[0]
+  this.tossing=true;this.tossCue={x:cue.x,y:cue.y}
+  this.potted=[];this.firstObjectPotted=null;this.scratch=false;this.firstHit=null;this.pocketOf={};this.railBalls=new Set();this.phase='roll'
+  blast(this.balls,at,{radius:eff.radius,power:eff.power});this.flash('BOOM');this.sync()
+ }
+ resolveToss(){
+  const shooter=this.turn,cue=this.balls[0]
+  const real=this.potted.filter(b=>b.k!=='dummy'&&b.k!=='cue'),dummies=this.potted.filter(b=>b.k==='dummy')
+  this.score={...this.score,[shooter]:(this.score[shooter]||0)+real.length*PUSH_POT+dummies.length*DUMMY_POINTS}
+  // a cue ball your own blast pocketed comes back where it was: no foul, the toss was not a shot
+  if(!cue.on){cue.on=true;cue.x=this.tossCue.x;cue.y=this.tossCue.y}
+  this.tossing=false;this.balls.forEach(clearMotion);this.phase='aim'
+  const target=this.scoreTarget||targetFor(this.mode)
+  if(this.score[shooter]>=target){this.onShotResult?.({shooter,potted:this.potted.map(b=>b.n),foul:false,winner:shooter});this.finish(shooter);this.sync();return}
+  if(this.balls.filter(b=>b.on&&b.k!=='cue'&&b.k!=='dummy').length<=1)this.reRack()
+  this.pushAfterShot(shooter,{levelUps:real.length,nextTurn:shooter,foul:false})
+  this.sync()
  }
  applyPlace(player,item,spot){
   if(!this.push||this.turn!==player||this.phase!=='aim')return
@@ -524,6 +563,7 @@ export class PoolGame{
   return true
  }
  resolve(){
+  if(this.tossing)return this.resolveToss()
   if(this.drill)return this.resolveDrill()
   if(this.rogueSeed!=null)return this.resolveRogue()
   if(this.chal)return this.resolveChallenge()

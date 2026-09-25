@@ -1,5 +1,6 @@
 import {W,H,R,PR,POCKETS,COLORS,DUMMY_COLOR,GEM_COLOR,ITEM_COLOR} from './table.js'
 import {shapeOf,RANGE} from './push/placing.js'
+import {TOSS_RANGE,scatterAt} from './push/toss.js'
 import {ITEMS} from './push/items.js'
 import {rayToRail,bankPath} from './pool.js'
 import {tableFractions} from './screen-point.js'
@@ -260,8 +261,13 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
   const pl=game.placing;if(!pl?.pos||game.phase!=='aim')return
   const ok=game.placingOk(),col=ok?'#3dffa0':'#ff3d3d',cue=game.balls[0]
   const mat=()=>new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.85,depthWrite:false})
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(RANGE[ITEMS[pl.item].range],.8,6,72),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.4,depthWrite:false}))
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(pl.toss?TOSS_RANGE:RANGE[ITEMS[pl.item].range],.8,6,72),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.4,depthWrite:false}))
   ring.rotation.x=Math.PI/2;ring.position.set(tx(cue.x),1,tz(cue.y));ghostGroup.add(ring)
+  if(pl.toss){
+   const dx=pl.pos.x-cue.x,dy=pl.pos.y-cue.y,d=Math.hypot(dx,dy)||1,k=Math.min(1,TOSS_RANGE/d),px=cue.x+dx*k,py=cue.y+dy*k,sr=Math.max(3,scatterAt(cue,pl.pos))
+   const zone=new THREE.Mesh(new THREE.CircleGeometry(sr,32),mat());zone.rotation.x=-Math.PI/2;zone.position.set(tx(px),1.4,tz(py));ghostGroup.add(zone)
+   const pip=new THREE.Mesh(new THREE.SphereGeometry(3,12,8),mat());pip.position.set(tx(px),4,tz(py));ghostGroup.add(pip)
+  }
   for(const o of shapeOf(pl.item,pl.pos.x,pl.pos.y,pl.rot)){
    if(o.t==='bumper'||o.t==='mine'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,o.t==='mine'?3:16,24),mat());m.position.set(tx(o.x),8,tz(o.y));ghostGroup.add(m)}
    else{const len=Math.hypot(o.x2-o.x1,o.y2-o.y1)+WALL_R*2,m=new THREE.Mesh(new THREE.BoxGeometry(len,12,WALL_R*2),mat());m.position.set(tx((o.x1+o.x2)/2),6,tz((o.y1+o.y2)/2));m.rotation.y=-Math.atan2(o.y2-o.y1,o.x2-o.x1);ghostGroup.add(m)}
@@ -277,6 +283,7 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
   for(const o of list){
    if(o.t==='bumper'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,16,28),new THREE.MeshStandardMaterial({color:'#9aa0a3',metalness:.7,roughness:.3}));m.position.set(tx(o.x),8,tz(o.y));obsGroup.add(m)}
    else if(o.t==='wall'){const len=Math.hypot(o.x2-o.x1,o.y2-o.y1)+WALL_R*2,m=new THREE.Mesh(new THREE.BoxGeometry(len,12,WALL_R*2),new THREE.MeshStandardMaterial({color:'#d8c58c',roughness:.5}));m.position.set(tx((o.x1+o.x2)/2),6,tz((o.y1+o.y2)/2));m.rotation.y=-Math.atan2(o.y2-o.y1,o.x2-o.x1);obsGroup.add(m)}
+   else if(o.t==='smoke'){const m=new THREE.Mesh(new THREE.SphereGeometry(o.r,20,14),new THREE.MeshBasicMaterial({color:'#c8c8cd',transparent:true,opacity:.55,depthWrite:false}));m.scale.y=.55;m.position.set(tx(o.x),o.r*.3,tz(o.y));obsGroup.add(m)}
    else if(o.t==='mine'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,3,24),new THREE.MeshStandardMaterial({color:'#3a1212',emissive:'#ff3c1e',emissiveIntensity:.5,roughness:.5}));m.position.set(tx(o.x),1.6,tz(o.y));obsGroup.add(m)}
    else if(o.t==='portal'){const c=PORTAL_COLORS[Math.floor(pi++/2)%PORTAL_COLORS.length],ringM=new THREE.Mesh(new THREE.TorusGeometry(o.r,2,8,40),new THREE.MeshBasicMaterial({color:c})),disc=new THREE.Mesh(new THREE.CircleGeometry(o.r,40),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.3,depthWrite:false}));for(const m of [ringM,disc]){m.rotation.x=-Math.PI/2;m.position.set(tx(o.x),1.4,tz(o.y));obsGroup.add(m)}}
   }

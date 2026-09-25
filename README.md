@@ -8,7 +8,16 @@ The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ## Status
 
-Fresh fork. Still pool-masters underneath; nothing P.U.S.H.-specific is built yet.
+A playable slice in the lobby as **P.U.S.H. Pool** (practice vs the AI, hot-seat, or online). Built so far:
+
+- **Points** are the score (10 per real ball, 1 per dummy, foul -5, first to 100) and also what powers cost.
+- **Level-ups:** sinking a real ball offers three powers; a pick you have not taken waits for your next turn.
+- **Powers:** Jump, and Pop / Stink / Cute (armed from the panel at a level you choose, paid for on the shot).
+- **Pickups:** gems (points) and items drop between turns and are collected by the cue ball.
+- **Items:** Wall, Cube, Pillar, Landmine (placing mechanic: range ring, ghost, Q/E or wheel to turn) and Bomb, Mortar, Smoke bomb (toss mechanic: drag out and let go, it always strays a little).
+- **Dummy balls** are in the rules and on the wire (grey, ignored by fouls) but nothing spawns them yet.
+
+Not built yet: the other powers, items and hazards in `docs/DESIGN.md`, Mulligan/rewind, and the no-solids/stripes multi-player mode.
 
 ## Sharing pool-masters' Supabase project
 

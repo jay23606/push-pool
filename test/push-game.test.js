@@ -212,3 +212,49 @@ test('a mine nothing rolls over stays put, and cannot be placed on a ball or too
  g.movePlacing({x:300,y:80});g.confirmPlace();assert.equal(g.push.obstacles.length,1)
  strike(cue,300,0);g.startShot();roll(g,1);assert.equal(g.push.obstacles.length,1,'the shot missed it')
 })
+
+// ---- tossing in a game ----
+const tossing=(items,extra={})=>game({push:{...freshPush(),a:{powers:{},items,picks:0}},...extra})
+// scatter is random; pin it so a test can rely on where a toss lands
+const exact=fn=>{const r=Math.random;Math.random=()=>0;try{fn()}finally{Math.random=r}}
+
+test('a mortar blasts the balls where it lands; balls it pots score for the tosser, who keeps the turn and the shot',()=>{
+ const {g}=tossing(['mortar']);clear(g);const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190
+ const near=put(g,1,330,60);put(g,14,600,330);put(g,15,620,300)   // just below the top-middle pocket
+ near.x=350;near.y=70
+ const before=near.y;exact(()=>g.applyToss('a','mortar',{x:350,y:110}))
+ assert.equal(g.tossing,true);assert.equal(g.phase,'roll');assert.deepEqual(g.push.a.items,[])
+ roll(g,4)
+ assert.equal(g.tossing,false);assert.equal(g.phase,'aim');assert.equal(g.turn,'a','a toss is not a shot: the turn stays')
+ assert.ok(!near.on,'the blast drove it into the pocket');assert.equal(g.score.a,10);assert.equal(g.push.a.picks,1);assert.ok(before>0)
+})
+
+test('a scratch caused by your own blast puts the cue ball back, with no foul',()=>{
+ const {g}=tossing(['mortar']);clear(g);const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=100
+ put(g,14,600,330);put(g,15,620,300)
+ exact(()=>g.applyToss('a','mortar',{x:350,y:130}));roll(g,4)
+ assert.equal(cue.on,true);assert.equal(g.turn,'a');assert.equal(g.score.a,0)
+ assert.ok(Math.hypot(cue.x-350,cue.y-100)<400,'somewhere on the table')
+})
+
+test('smoke bomb: a cloud goes on the table, no balls move, and it is gone after its turns',()=>{
+ const {g}=tossing(['smokebomb']);clear(g);g.balls[0].on=true;g.balls[0].x=200;g.balls[0].y=190;put(g,14,600,330)
+ g.applyToss('a','smokebomb',{x:300,y:190})
+ assert.equal(g.tossing,undefined);assert.equal(g.phase,'aim');assert.equal(g.push.obstacles.filter(o=>o.t==='smoke').length,1)
+ assert.equal(g.push.obstacles[0].ttl>=1&&g.push.obstacles[0].ttl<=3,true)
+})
+
+test('toss input: drag out and let go; a click without a drag does nothing; only bombs and the like can be tossed',()=>{
+ const {g}=tossing(['bomb','wall']);g.canControl=()=>true;g.balls[0].on=true
+ assert.equal(g.startPlacing('wall'),true,'a wall is placed');g.cancelPlacing()
+ assert.equal(g.startPlacing('bomb'),true);assert.equal(g.placing.toss,true)
+ g.confirmPlace();assert.deepEqual(g.push.a.items,['bomb','wall'],'no pointer position yet, nothing thrown')
+ g.movePlacing({x:400,y:200});assert.equal(g.placingOk(),true)
+})
+
+test('a guest asks the host to toss, only on their turn',()=>{
+ const {g}=game({turn:'b',push:{...freshPush(),b:{powers:{},items:['smokebomb'],picks:0}}})
+ g.receive({t:'toss',item:'smokebomb',x:300,y:190});assert.equal(g.push.obstacles.length,1)
+ const {g:h}=game({turn:'a',push:{...freshPush(),b:{powers:{},items:['smokebomb'],picks:0}}})
+ h.receive({t:'toss',item:'smokebomb',x:300,y:190});assert.equal(h.push.obstacles.length,0)
+})

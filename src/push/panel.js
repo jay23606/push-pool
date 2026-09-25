@@ -1,6 +1,7 @@
 import {POWERS,powerCost} from './powers.js'
 import {ITEMS} from './items.js'
 import {isPlaceable} from './placing.js'
+import {isTossable} from './toss.js'
 import {isArmable} from './powers.js'
 
 // The P.U.S.H. Pool side panel: your points, powers and items, and the level-up choice when one is owed. It is plain DOM
@@ -57,8 +58,8 @@ export function renderPushPanel(game){
  if(st.items.length){
   const row=el('div','push-row');row.append(el('span','push-label','Items'))
   for(const id of st.items){
-   if(isPlaceable(id)&&st.canUse){
-    const b=el('button','push-chip item use'+(st.placing===id?' on':''),(st.placing===id?'Placing · ':'Place · ')+ITEMS[id].name);b.type='button'
+   if((isPlaceable(id)||isTossable(id))&&st.canUse){
+    const b=el('button','push-chip item use'+(st.placing===id?' on':''),(st.placing===id?'Aiming · ':isTossable(id)?'Toss · ':'Place · ')+ITEMS[id].name);b.type='button'
     b.onclick=()=>st.placing===id?game.cancelPlacing():game.startPlacing(id)
     row.append(b)
    }else row.append(el('span','push-chip item',ITEMS[id].name))
