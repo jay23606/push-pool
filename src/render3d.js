@@ -1,4 +1,6 @@
 import {W,H,R,PR,POCKETS,COLORS,DUMMY_COLOR,GEM_COLOR,ITEM_COLOR} from './table.js'
+import {shapeOf,RANGE} from './push/placing.js'
+import {ITEMS} from './push/items.js'
 import {rayToRail,bankPath} from './pool.js'
 import {tableFractions} from './screen-point.js'
 import {getObstacles,WALL_R} from './obstacles.js'
@@ -251,6 +253,20 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
    m.position.set(tx(k.x),R*.9,tz(k.y));m.castShadow=true;pickGroup.add(m)
   }
  }
+ // the item being placed: a translucent ghost of it, and a ring showing how far it may go
+ const ghostGroup=new THREE.Group();scene.add(ghostGroup)
+ function drawGhost(game){
+  for(const m of [...ghostGroup.children]){ghostGroup.remove(m);m.geometry.dispose();m.material.dispose()}
+  const pl=game.placing;if(!pl?.pos||game.phase!=='aim')return
+  const ok=game.placingOk(),col=ok?'#3dffa0':'#ff3d3d',cue=game.balls[0]
+  const mat=()=>new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.85,depthWrite:false})
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(RANGE[ITEMS[pl.item].range],.8,6,72),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.4,depthWrite:false}))
+  ring.rotation.x=Math.PI/2;ring.position.set(tx(cue.x),1,tz(cue.y));ghostGroup.add(ring)
+  for(const o of shapeOf(pl.item,pl.pos.x,pl.pos.y,pl.rot)){
+   if(o.t==='bumper'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,16,24),mat());m.position.set(tx(o.x),8,tz(o.y));ghostGroup.add(m)}
+   else{const len=Math.hypot(o.x2-o.x1,o.y2-o.y1)+WALL_R*2,m=new THREE.Mesh(new THREE.BoxGeometry(len,12,WALL_R*2),mat());m.position.set(tx((o.x1+o.x2)/2),6,tz((o.y1+o.y2)/2));m.rotation.y=-Math.atan2(o.y2-o.y1,o.x2-o.x1);ghostGroup.add(m)}
+  }
+ }
  const bombRing=new THREE.Mesh(new THREE.TorusGeometry(R+3,1.4,8,28),new THREE.MeshBasicMaterial({color:'#ff503c'}));bombRing.rotation.x=-Math.PI/2;bombRing.visible=false;scene.add(bombRing)
  // Obstacle tables: rebuilt whenever the game's set of obstacles changes
  const obsGroup=new THREE.Group();scene.add(obsGroup);let obsShown=null
@@ -417,6 +433,7 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
    const pk=game.pocketScale?game.pocketScale():1
    for(const m of pocketMeshes)m.scale.set(pk,1,pk)
    const obs=getObstacles();if(obs!==obsShown){obsShown=obs;buildObstacles(obs)}
+   drawGhost(game)
    const picks=game.push?.pickups||[]
    if(picks!==pickShown){pickShown=picks;buildPickups(picks)}
    for(const m of pickGroup.children){m.rotation.y+=dt*1.8;m.position.y=R*.9+Math.sin(performance.now()/300+m.position.x)*1.2}

@@ -7,6 +7,7 @@ import {drawTwist,blast,wellPull,bonusPocket,twistName} from './chaos.js'
 import {collectPickups,afterShot,choosePower,payPower} from './push/logic.js'
 import {renderPushPanel} from './push/panel.js'
 import {powerCost} from './push/powers.js'
+import {placeItem,whyNotPlace,isPlaceable} from './push/placing.js'
 import {ITEMS} from './push/items.js'
 import {newRun as newRogueRun,judge as judgeRogue,choose as chooseRogue,advance as advanceRogue,offer as offerRogue,POCKET_BOOST} from './rogue.js'
 import {other,remaining as countLeft,nearestPocket,validCueSpot,judgeShot,opposite,normalizeGroup,modeOf,lowestBall,nineRespot,MODES,isScoreMode,ONE_POCKET,targetFor,isRotation,MONEY,trianglePositions,kind} from './rules.js'
@@ -168,7 +169,7 @@ export class PoolGame{
  setSpectator(v){this.spectator=Boolean(v);this.draw()}
  canControl(){return !this.rogueWait&&!this.spectator&&!this.replay&&this.ready&&this.phase==='aim'&&this.turn===this.me&&!this.over&&this.balls[0]?.on}
  canAim(){return this.canControl()&&!this.ballInHand}
- takeShot(){if(!this.canAim()||!this.aiming)return;if(!this.drill&&this.eightGame()&&this.guide().hit?.k==='eight'&&!this.canCallEight()){this.calledPocket=null;this.aiming=false;this.flash(this.eightBlockedMessage());return}const s=shotSpeed(+this.power.value),vx=Math.cos(this.angle)*s,vy=Math.sin(this.angle)*s,spin=[this.spin.a,this.spin.b];if(!this.drill&&!this.chal&&!(this.jumpAllowed()&&this.jumpOn))this.lastCoach={before:this.balls.map(b=>({...b})),shot:{angle:this.angle,power:+this.power.value,spin},group:this.group(this.me),mode:this.mode,player:this.me,breakShot:this.breakShot,result:null,replays:null};this.aiming=false;this.sfx?.cue(+this.power.value/100);
+ takeShot(){if(!this.canAim()||!this.aiming)return;this.placing=null;if(!this.drill&&this.eightGame()&&this.guide().hit?.k==='eight'&&!this.canCallEight()){this.calledPocket=null;this.aiming=false;this.flash(this.eightBlockedMessage());return}const s=shotSpeed(+this.power.value),vx=Math.cos(this.angle)*s,vy=Math.sin(this.angle)*s,spin=[this.spin.a,this.spin.b];if(!this.drill&&!this.chal&&!(this.jumpAllowed()&&this.jumpOn))this.lastCoach={before:this.balls.map(b=>({...b})),shot:{angle:this.angle,power:+this.power.value,spin},group:this.group(this.me),mode:this.mode,player:this.me,breakShot:this.breakShot,result:null,replays:null};this.aiming=false;this.sfx?.cue(+this.power.value/100);
   // The pocket called for the 8 is read now, while the player is still aiming: startShot() begins the roll,
   // and calling is only allowed while aiming. Read after it, a guest always sent no call at all, and the host
   // judged every 8 a guest potted as a loss.
@@ -183,6 +184,7 @@ export class PoolGame{
   if(m.t==='table'&&!this.host)return this.onTable?.(m)
   if(m.t==='next-rack'&&this.host)return this.newRack()
   if(m.t==='pick'&&this.host&&this.turn==='b')return this.applyPick('b',m.id)
+  if(m.t==='place'&&this.host&&this.turn==='b')return this.applyPlace('b',m.item,{x:m.x,y:m.y,rot:m.rot})
   if(m.t==='state'&&!this.host)return this.receiveState(m)
   if(m.t==='shot'&&this.host&&this.turn==='b'&&this.phase==='aim')this.receiveShot(m)
  }
@@ -335,7 +337,7 @@ export class PoolGame{
  pushAfterShot(shooter,v){
   if(!this.push)return
   const r=afterShot(this.push,{shooter,nextTurn:v.nextTurn,levelUps:v.levelUps||0,turnChanged:Boolean(v.foul||v.nextTurn!==shooter),balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY}})
-  this.push=r.push
+  this.push=r.push;this.placing=null;this.syncObstacles()
   if(r.messages.length)this.flash(r.messages[0])
   // the practice AI takes its level-up at once, at random
   while(this.push.offers&&this.practice&&!this.hotSeat&&this.turn==='b')this.applyPick('b',this.push.offers[Math.floor(Math.random()*this.push.offers.length)].id)
@@ -349,6 +351,36 @@ export class PoolGame{
   const me=this.hotSeat?this.turn:this.me
   if(this.mode!=='push'||!this.push?.offers||this.turn!==me||this.spectator)return
   if(this.host)this.applyPick(me,id);else this.send({t:'pick',id})
+ }
+ // Placing an item: pick it, move over the table (it follows the pointer, turning with Q/E or the wheel), click to put it down.
+ placeCtx(){return {cue:this.balls[0],balls:this.balls,bounds:{minx:MINX,maxx:MAXX,miny:MINY,maxy:MAXY}}}
+ syncObstacles(){
+  if(this.mode!=='push')return
+  const list=this.push?.obstacles||[],sig=JSON.stringify(list)
+  if(sig!==this.obsSig){this.obsSig=sig;setObstacles(list)}
+ }
+ startPlacing(id){
+  const me=this.hotSeat?this.turn:this.me
+  if(this.mode!=='push'||!this.push||this.turn!==me||!this.canControl()||this.ballInHand||!isPlaceable(id)||!this.push[me].items.includes(id))return false
+  this.placing={item:id,rot:0,pos:null};this.aiming=false;this.drag=false
+  this.flash('Click to place · Q/E or wheel to turn · Esc cancels');return true
+ }
+ cancelPlacing(){this.placing=null}
+ turnPlacing(d){if(this.placing)this.placing.rot+=d}
+ movePlacing(p){if(this.placing&&p)this.placing.pos={x:p.x,y:p.y}}
+ placingSpot(){const pl=this.placing;return pl?.pos?{x:Math.round(pl.pos.x),y:Math.round(pl.pos.y),rot:Math.round(pl.rot*100)/100}:null}
+ placingOk(){const s=this.placingSpot();return Boolean(s)&&!whyNotPlace(this.push,this.turn,this.placing.item,s,this.placeCtx())}
+ confirmPlace(){
+  const spot=this.placingSpot();if(!spot)return
+  const id=this.placing.item,why=whyNotPlace(this.push,this.turn,id,spot,this.placeCtx())
+  if(why){this.flash({'too-far':'Too far from the cue ball','on-a-ball':'A ball is in the way','on-an-obstacle':'Something is already there','off-table':'That is off the cloth'}[why]||'Cannot place it there');return}
+  this.placing=null
+  if(this.host)this.applyPlace(this.turn,id,spot);else this.send({t:'place',item:id,...spot})
+ }
+ applyPlace(player,item,spot){
+  if(!this.push||this.turn!==player||this.phase!=='aim')return
+  const next=placeItem(this.push,player,item,spot,this.placeCtx());if(next===this.push)return
+  this.push=next;this.syncObstacles();this.sync();this.flash(ITEMS[item].name+' placed')
  }
  payJump(){
   const r=payPower(this.push,this.score,this.turn,'jump',1,'before')
@@ -486,6 +518,7 @@ export class PoolGame{
  }
  guide(){const c=this.balls[0],dx=Math.cos(this.angle),dy=Math.sin(this.angle),rail=rayToRail(c.x,c.y,dx,dy);let hit=null,t=rail;for(let i=1;i<this.balls.length;i++){const b=this.balls[i];if(!b.on)continue;const ox=b.x-c.x,oy=b.y-c.y,p=ox*dx+oy*dy,s=ox*ox+oy*oy-p*p;if(p>R&&s<=4*R*R){const z=p-Math.sqrt(4*R*R-s);if(z<t){t=z;hit=b}}}return{c,dx,dy,t,hit,banks:!hit?bankPath(c.x,c.y,dx,dy,2):[]}}
  draw(dt=.016,replayed){
+  this.syncObstacles()
   if(replayed===undefined)replayed=this.replayBalls(performance.now())
   // While rolling, a non-host renders the locally predicted trajectory
   // rather than the authoritative array, which only moves in ~40ms jumps --

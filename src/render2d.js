@@ -1,4 +1,6 @@
 import {W,H,R,PR,POCKETS,COLORS,DUMMY_COLOR,GEM_COLOR,ITEM_COLOR} from './table.js'
+import {shapeOf,RANGE} from './push/placing.js'
+import {ITEMS} from './push/items.js'
 import {rayToRail,bankPath} from './pool.js'
 import {tableFractions} from './screen-point.js'
 import {getObstacles,WALL_R} from './obstacles.js'
@@ -32,6 +34,12 @@ export function createRenderer2D(canvas,options={}){
    g.fillStyle='#07100c'
    const pk=game.pocketScale?game.pocketScale():1
    POCKETS.forEach(([x,y],i)=>{g.beginPath();g.arc(x,y,(PR-2)*pk,0,7);g.fill();if((game.markedPocket?game.markedPocket():game.calledPocket)===i){g.strokeStyle='#ffd75d';g.lineWidth=3;g.beginPath();g.arc(x,y,PR+3,0,7);g.stroke()}if(game.snapMark&&game.snapMark()===i){g.strokeStyle='#ffffffb0';g.lineWidth=2;g.beginPath();g.arc(x,y,PR+1,0,7);g.stroke()}})
+   if(game.placing?.pos&&game.phase==='aim'){
+    const pl=game.placing,cue=game.balls[0],ok=game.placingOk(),col=ok?'#5dff9a':'#ff5d5d'
+    g.save();g.setLineDash([5,5]);g.strokeStyle='rgba(255,255,255,.45)';g.lineWidth=1.5;g.beginPath();g.arc(cue.x,cue.y,RANGE[ITEMS[pl.item].range],0,7);g.stroke();g.restore()
+    g.strokeStyle=col;g.fillStyle=ok?'rgba(93,255,154,.25)':'rgba(255,93,93,.25)';g.lineWidth=4
+    for(const o of shapeOf(pl.item,pl.pos.x,pl.pos.y,pl.rot)){if(o.t==='bumper'){g.beginPath();g.arc(o.x,o.y,o.r,0,7);g.fill();g.stroke()}else{g.beginPath();g.moveTo(o.x1,o.y1);g.lineTo(o.x2,o.y2);g.stroke()}}
+   }
    // P.U.S.H. Pool pickups: a gem is a blue diamond, an item an amber box, both bobbing a little
    for(const k of game.push?.pickups||[]){
     const bob=Math.sin(performance.now()/300+k.x)*1.5

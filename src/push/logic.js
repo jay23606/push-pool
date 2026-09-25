@@ -2,6 +2,7 @@ import {R} from '../table.js'
 import {offers as makeOffers,pick,giveItem,whyNotPower,usePower} from './economy.js'
 import {dealSpawns,tickSpawns} from './spawns.js'
 import {rollGem} from './items.js'
+import {ageObstacles} from './placing.js'
 
 // What happens around a shot, as pure functions over the game's `push` state and `score`. The game object calls
 // these and applies the result, so the rules can be tested without a table.
@@ -32,7 +33,7 @@ export function collectPickups(push,score,turn,cue){
  let next={...push,pickups:push.pickups.filter(k=>!got.includes(k))},pts=0
  for(const k of got){
   if(k.kind==='gem')pts+=k.v
-  else next=inPush(next,turn,p=>giveItem({...p,points:0},k.id))
+  else next=inPush(next,turn,p=>giveItem(p,k.id))
  }
  return {push:next,score:{...score,[turn]:score[turn]+pts},collected:got}
 }
@@ -52,7 +53,7 @@ export function afterShot(push,{shooter,nextTurn=shooter,levelUps=0,turnChanged=
  }
  if(turnChanged){
   const turns=next.turns+1,aged=tickSpawns(next.spawns),pickups=next.pickups.map(k=>({...k,ttl:k.ttl-1})).filter(k=>k.ttl>0)
-  next={...next,turns,spawns:aged.alive,pickups}
+  next={...next,turns,spawns:aged.alive,pickups,obstacles:ageObstacles(next.obstacles)}
   const dealt=dealSpawns(aged.alive,turns,rand,()=>[0,0],LIVE_SPAWNS)
   for(const s of dealt){
    if(s.type==='gemdrop'){

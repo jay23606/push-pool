@@ -279,3 +279,69 @@ test('an unclaimed level-up waits for its owner: offers follow the turn',()=>{
  const bPots=afterShot(withPush({a:{powers:{},items:[],picks:2}}),{shooter:'b',nextTurn:'b',levelUps:1,balls:[],bounds:BOUNDS,rand:seeded(6)})
  assert.equal(bPots.push.offers.length,3);assert.equal(bPots.push.b.picks,1);assert.equal(bPots.push.a.picks,2)
 })
+
+// ---- placing ----
+import {shapeOf,whyNotPlace,placeItem,ageObstacles,RANGE,PLACEABLE,OBSTACLE_LIFE,WALL_LEN,CUBE_SIDE} from '../src/push/placing.js'
+import {obstacleStep,setObstacles} from '../src/obstacles.js'
+const cueAt=(x,y)=>({n:0,k:'cue',on:true,x,y,vx:0,vy:0})
+const holding=(...items)=>withPush({a:{powers:{},items,picks:0}})
+const ctx=(balls=[],cue=cueAt(200,190))=>({cue,balls:[cue,...balls],bounds:BOUNDS})
+
+test('placeable items turn into the obstacle records the physics already knows',()=>{
+ const w=shapeOf('wall',200,190,0);assert.equal(w.length,1);assert.equal(w[0].t,'wall')
+ assert.ok(Math.abs(Math.hypot(w[0].x2-w[0].x1,w[0].y2-w[0].y1)-WALL_LEN)<1e-9)
+ const tilted=shapeOf('wall',200,190,Math.PI/2);assert.ok(Math.abs(tilted[0].x1-tilted[0].x2)<1e-9,'rotated a quarter turn it stands upright')
+ assert.equal(shapeOf('cube',200,190,.4).length,4,'a cube is four walls')
+ assert.equal(shapeOf('pillar',200,190)[0].t,'bumper')
+ assert.deepEqual(PLACEABLE,['wall','cube','pillar']);assert.deepEqual(shapeOf('bomb',1,1),[])
+})
+
+test('a placed wall really stops a ball: the physics treats it like any obstacle',()=>{
+ const push=placeItem(holding('wall'),'a','wall',{x:300,y:190,rot:Math.PI/2},ctx())
+ setObstacles(push.obstacles)
+ const b={x:270,y:190,vx:200,vy:0,wx:0,wy:0,wz:0,z:0}
+ for(let i=0;i<40;i++){b.x+=b.vx*.005;obstacleStep(b)}
+ setObstacles([]);assert.ok(b.vx<0,'it bounced back off the wall')
+})
+
+test('placement rules: held, in range, on the cloth, clear of balls and other barriers',()=>{
+ const c=ctx([{n:3,k:'solid',on:true,x:260,y:190}]),h=holding('wall','cube','pillar','bomb')
+ assert.equal(whyNotPlace(h,'a','wall',{x:220,y:120,rot:0},c),null)
+ assert.equal(whyNotPlace(holding(),'a','wall',{x:220,y:120,rot:0},c),'not-held')
+ assert.equal(whyNotPlace(h,'a','bomb',{x:220,y:120,rot:0},c),'not-placeable','bombs are tossed, not placed')
+ assert.equal(whyNotPlace(h,'a','wall',{x:200+RANGE.short+5,y:190,rot:0},c),'too-far')
+ assert.equal(whyNotPlace(h,'a','wall',{x:260,y:190,rot:0},c),'on-a-ball')
+ assert.equal(whyNotPlace(h,'a','pillar',{x:'x',y:1},c),'bad-spot')
+ assert.equal(whyNotPlace(h,'a','wall',{x:200,y:120,rot:0},{...c,cue:{...cueAt(45,45),on:false}}),'no-cue')
+ const edge=ctx([],cueAt(60,60));assert.equal(whyNotPlace(h,'a','wall',{x:50,y:60,rot:0},edge),'off-table')
+ const placed=placeItem(h,'a','wall',{x:220,y:120,rot:0},c)
+ assert.equal(whyNotPlace(placed,'a','wall',{x:225,y:122,rot:0},{...c}),'not-held','one wall in hand, used')
+ assert.equal(whyNotPlace({...placed,a:{...placed.a,items:['wall']}},'a','wall',{x:225,y:122,rot:0},c),'on-an-obstacle')
+})
+
+test('placing uses the item up, gives the barrier a lifetime, and never mutates its input',()=>{
+ const h=holding('wall','wall'),p=placeItem(h,'a','wall',{x:220,y:120,rot:0},ctx())
+ assert.deepEqual(p.a.items,['wall']);assert.equal(h.a.items.length,2)
+ assert.ok(p.obstacles.every(o=>o.ttl===OBSTACLE_LIFE&&o.item==='wall'))
+ assert.equal(p.a.points,undefined,'no points key leaks into the push state')
+ const refused=placeItem(h,'a','wall',{x:900,y:900,rot:0},ctx());assert.equal(refused,h)
+ assert.ok(validPush(p),'and it is valid on the wire')
+})
+
+test('barriers age with the turns and then disappear',()=>{
+ const p=placeItem(holding('cube'),'a','cube',{x:250,y:190,rot:.3},ctx())
+ assert.equal(p.obstacles.length,4)
+ let list=p.obstacles;for(let i=0;i<OBSTACLE_LIFE-1;i++)list=ageObstacles(list)
+ assert.equal(list.length,4,'still there one turn before the end');assert.equal(ageObstacles(list).length,0)
+ const viaShot=afterShot(p,{shooter:'a',nextTurn:'b',turnChanged:true,balls:[],bounds:BOUNDS,rand:()=>.99})
+ assert.ok(viaShot.push.obstacles.every(o=>o.ttl===OBSTACLE_LIFE-1),'a turn passing ages them')
+ assert.ok(CUBE_SIDE>0)
+})
+
+test('a malformed obstacle drops the state message',()=>{
+ const good=placeItem(holding('pillar'),'a','pillar',{x:230,y:190},ctx())
+ assert.ok(validPush(good))
+ assert.equal(validPush({...good,obstacles:[{t:'lava',ttl:1}]}),false)
+ assert.equal(validPush({...good,obstacles:[{t:'wall',x1:1,y1:1,x2:'a',y2:1,ttl:1}]}),false)
+ assert.equal(validPush({...good,obstacles:Array.from({length:61},()=>({t:'bumper',x:1,y:1,r:1,ttl:1}))}),false)
+})

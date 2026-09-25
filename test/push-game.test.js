@@ -118,3 +118,31 @@ test('the AI takes every level-up it is owed, and the human keeps theirs for nex
  assert.equal(g.push.b.picks,0,'the AI has taken all of its own')
  if(g.turn==='a'){assert.equal(g.push.a.picks,3);assert.equal(g.push.offers.length,3,'and the human is offered theirs')}
 })
+
+test('placing a wall: pick it, hover, confirm; it stops a ball and the item is used up',()=>{
+ const {g}=game({push:{...freshPush(),a:{powers:{},items:['wall'],picks:0}}});clear(g)
+ g.canControl=()=>true
+ const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190
+ assert.equal(g.startPlacing('bomb'),false,'a bomb is tossed, not placed');assert.equal(g.startPlacing('wall'),true)
+ g.movePlacing({x:900,y:900});g.confirmPlace();assert.ok(g.placing,'too far: refused, still placing');assert.deepEqual(g.push.a.items,['wall'])
+ g.turnPlacing(Math.PI/2);g.movePlacing({x:270,y:190});assert.equal(g.placingOk(),true)
+ g.confirmPlace()
+ assert.equal(g.placing,null);assert.deepEqual(g.push.a.items,[]);assert.equal(g.push.obstacles.length,1)
+ // the physics now has the wall: a shot straight at it comes back
+ put(g,14,600,330);put(g,15,620,300);put(g,1,250,80)
+ strike(cue,700,0);g.startShot();roll(g)
+ assert.ok(cue.x<260,'the cue ball never got past the barrier at x=270')
+})
+
+test('escape and a second click of the item cancel placing; a shot cancels it too',()=>{
+ const {g}=game({push:{...freshPush(),a:{powers:{},items:['pillar'],picks:0}}});g.canControl=()=>true
+ g.startPlacing('pillar');g.cancelPlacing();assert.equal(g.placing,null)
+ g.startPlacing('pillar');g.movePlacing({x:210,y:150});g.turnPlacing(.4);assert.ok(Math.abs(g.placing.rot-.4)<1e-9)
+})
+
+test('a guest asks the host to place, and only the player whose turn it is gets it',()=>{
+ const {g}=game({turn:'b',push:{...freshPush(),b:{powers:{},items:['pillar'],picks:0}}})
+ g.receive({t:'place',item:'pillar',x:230,y:150,rot:0});assert.equal(g.push.obstacles.length,1);assert.deepEqual(g.push.b.items,[])
+ const {g:h}=game({turn:'a',push:{...freshPush(),b:{powers:{},items:['pillar'],picks:0}}})
+ h.receive({t:'place',item:'pillar',x:230,y:150,rot:0});assert.equal(h.push.obstacles.length,0,'not b\'s turn')
+})

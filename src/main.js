@@ -43,6 +43,7 @@ const sb=createClient(SUPABASE_URL,SUPABASE_KEY)
 const foyer=createFoyer({supabase:sb,url:SUPABASE_URL,anonKey:SUPABASE_KEY,hostMigration:false,peerGraceMs:25000,reconnectAttempts:5,heartbeatMs:15000,staleSeconds:180})
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 const state={room:null,net:null,peers:new Map(),game:null,media:null,unsubs:[],mode:'lobby',opponent:null,role:'pending',rankings:[],profile:null,matchScore:emptyScore(),saveTimer:null,pendingSave:null,lastSave:0}
+if(import.meta.env.DEV)Object.defineProperty(window,'__game',{get:()=>state.game})   // for poking at a game from the console while developing
 document.documentElement.dataset.theme=localStorage.getItem('push-pool:theme')||'dark'
 const sfx=createSfx()
 const music=createMusic()

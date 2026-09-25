@@ -1,5 +1,6 @@
 import {POWERS,powerCost} from './powers.js'
 import {ITEMS} from './items.js'
+import {isPlaceable} from './placing.js'
 
 // The P.U.S.H. Pool side panel: your points, powers and items, and the level-up choice when one is owed. It is plain DOM
 // built with textContent (nothing from the network is ever parsed as HTML), and only rebuilt when what it shows changes,
@@ -12,7 +13,8 @@ export function pushPanelState(game){
  if(!push||game.mode!=='push')return null
  const mine=push[me]
  return {me,points:game.score?.[me]||0,powers:mine.powers,items:mine.items,picks:mine.picks,
-  offers:game.turn===me&&!game.spectator?push.offers:null}
+  offers:game.turn===me&&!game.spectator?push.offers:null,
+  canUse:game.turn===me&&!game.spectator&&game.phase==='aim'&&!game.ballInHand,placing:game.placing?.item||null}
 }
 
 export function renderPushPanel(game){
@@ -48,7 +50,13 @@ export function renderPushPanel(game){
  }
  if(st.items.length){
   const row=el('div','push-row');row.append(el('span','push-label','Items'))
-  for(const id of st.items)row.append(el('span','push-chip item',ITEMS[id].name))
+  for(const id of st.items){
+   if(isPlaceable(id)&&st.canUse){
+    const b=el('button','push-chip item use'+(st.placing===id?' on':''),(st.placing===id?'Placing · ':'Place · ')+ITEMS[id].name);b.type='button'
+    b.onclick=()=>st.placing===id?game.cancelPlacing():game.startPlacing(id)
+    row.append(b)
+   }else row.append(el('span','push-chip item',ITEMS[id].name))
+  }
   p.append(row)
  }
 }
