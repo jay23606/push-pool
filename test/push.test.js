@@ -129,3 +129,71 @@ test('dealing is deterministic for a seed',()=>{
  const a=dealSpawns([],3,seeded(99),()=>[5,5]),b=dealSpawns([],3,seeded(99),()=>[5,5])
  assert.deepEqual(a,b)
 })
+
+// ---- rules, protocol and state ----
+import {MODES,isScoreMode,targetFor,judgeScoreGame,PUSH_TARGET,PUSH_POT,PUSH_FOUL,rack} from '../src/rules.js'
+import {isGameMessage} from '../src/protocol.js'
+import {freshRackState,snapshotOf,applySnapshot} from '../src/game-state.js'
+import {freshPush,validPush} from '../src/push/state.js'
+
+const shot=(o)=>({mode:'push',turn:'a',score:{a:0,b:0},potted:[],firstHit:{n:3},scratch:false,balls:rack('8ball'),...o})
+const real=n=>({n,k:n<8?'solid':'stripe',on:false}),dum=n=>({...makeDummy(n,0,0),on:false})
+
+test('push is a scored game with a hundred-point target',()=>{
+ assert.ok(MODES.push);assert.ok(isScoreMode('push'));assert.equal(targetFor('push'),PUSH_TARGET)
+})
+
+test('a real ball is worth ten, keeps the turn, and owes a level-up',()=>{
+ const v=judgeScoreGame(shot({potted:[real(3)]}))
+ assert.equal(v.score.a,PUSH_POT);assert.equal(v.nextTurn,'a');assert.equal(v.levelUps,1)
+ assert.equal(judgeScoreGame(shot({potted:[real(3),real(9)]})).levelUps,2)
+})
+
+test('a dummy ball scores a point but never keeps the turn or owes a level-up',()=>{
+ const v=judgeScoreGame(shot({potted:[dum(100),dum(101)]}))
+ assert.equal(v.score.a,2);assert.equal(v.nextTurn,'b');assert.equal(v.levelUps,0);assert.equal(v.foul,false)
+ const mixed=judgeScoreGame(shot({potted:[dum(100),real(3)]}))
+ assert.equal(mixed.score.a,PUSH_POT+1);assert.equal(mixed.nextTurn,'a')
+})
+
+test('a foul costs points, never below zero, and forfeits everything the shot potted',()=>{
+ const v=judgeScoreGame(shot({score:{a:12,b:0},potted:[real(3),dum(100)],scratch:true}))
+ assert.equal(v.foul,true);assert.equal(v.score.a,12-PUSH_FOUL);assert.equal(v.levelUps,0);assert.equal(v.nextTurn,'b')
+ assert.equal(judgeScoreGame(shot({score:{a:2,b:0},scratch:true})).score.a,0)
+ assert.equal(judgeScoreGame(shot({firstHit:null})).reason,'no-contact')
+})
+
+test('dummy balls do not count towards the rack running out, and a hundred wins',()=>{
+ const onlyDummies=[{n:0,k:'cue',on:true},makeDummy(100,1,1),makeDummy(101,2,2)]
+ assert.equal(judgeScoreGame(shot({balls:onlyDummies})).rerack,true,'no real balls left: re-rack')
+ assert.equal(judgeScoreGame(shot({score:{a:95,b:0},potted:[real(3)]})).winner,'a')
+ assert.equal(judgeScoreGame(shot({score:{a:80,b:0},potted:[real(3)]})).winner,null)
+})
+
+const tuple=(n,k)=>[10,10,true,k,n,0,0,0,0,0]
+const snap=(extra=[],push)=>({...snapshotOf({...freshRackState('push'),balls:[...rack('push'),...extra],round:1}),...(push===undefined?{}:{push})})
+
+test('the protocol accepts a push state with dummies and refuses them anywhere else',()=>{
+ const withDummies=snap([makeDummy(100,50,50),makeDummy(101,80,80)])
+ assert.ok(isGameMessage(withDummies))
+ assert.equal(isGameMessage({...withDummies,mode:'8ball'}),false,'dummies only exist in push')
+ assert.equal(isGameMessage({...withDummies,b:[...withDummies.b,tuple(100,'dummy')]}),false,'duplicate id')
+ assert.equal(isGameMessage({...withDummies,b:[...withDummies.b,tuple(250,'dummy')]}),false,'dummy id out of range')
+ assert.equal(isGameMessage({...withDummies,b:withDummies.b.slice(1)}),false,'a real ball is missing')
+ const many=snap(Array.from({length:61},(_,i)=>makeDummy(100+i,10,10)))
+ assert.equal(isGameMessage(many),false,'too many dummies')
+})
+
+test('push state travels in the snapshot and is validated',()=>{
+ const g=freshRackState('push');assert.deepEqual(g.push,freshPush());assert.equal(freshRackState('8ball').push,undefined)
+ const s=snapshotOf({...g,balls:rack('push'),round:1});assert.ok(isGameMessage(s))
+ const back={};applySnapshot(back,JSON.parse(JSON.stringify(s)));assert.deepEqual(back.push,g.push)
+ const good={...freshPush(),a:{powers:{spin:2},items:['bomb'],picks:1},offers:[{id:'guide',level:1}],spawns:[{type:'gemdrop',ttl:1,x:5,y:6}]}
+ assert.ok(validPush(good));assert.ok(validPush(null));assert.ok(validPush(undefined))
+ assert.equal(validPush({...good,a:{...good.a,powers:{spin:9}}}),false,'level out of range')
+ assert.equal(validPush({...good,a:{...good.a,powers:{fly:1}}}),false,'unknown power')
+ assert.equal(validPush({...good,a:{...good.a,items:['nuke']}}),false,'unknown item')
+ assert.equal(validPush({...good,spawns:[{type:'gemdrop',ttl:1,x:'a'}]}),false,'bad coordinate')
+ assert.equal(validPush({...good,offers:[{id:'spin',level:0}]}),false,'bad offer')
+ assert.equal(isGameMessage({...s,push:{a:1}}),false,'a malformed push field drops the message')
+})

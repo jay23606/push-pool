@@ -1,4 +1,5 @@
 import {rack,modeOf} from './rules.js'
+import {freshPush} from './push/state.js'
 
 // Authoritative, renderer-free match state. The controller owns timing and
 // input; this module owns the fields that can cross the network.
@@ -6,7 +7,7 @@ export function freshRackState(mode='8ball'){
  mode=modeOf(mode)
  return {mode,balls:rack(mode),turn:'a',phase:'aim',over:false,result:'',finished:false,
   aiming:false,groups:{a:null,b:null},assignment:null,breakShot:true,
-  calledPocket:null,ballInHand:false,placed:false,score:{a:0,b:0}}
+  calledPocket:null,ballInHand:false,placed:false,score:{a:0,b:0},...(mode==='push'?{push:freshPush()}:{})}
 }
 
 // One decimal place for motion, whole units for position: position only
@@ -21,7 +22,7 @@ export function snapshotOf(g){
    round1(b.vx),round1(b.vy),round1(b.wx),round1(b.wy),round1(b.wz),...(b.z>0?[round1(b.z),round1(b.vz||0)]:[])]),
   turn:g.turn,phase:g.phase,over:g.over,result:g.result||'',round:g.round,
   groups:g.groups,assignment:g.assignment,breakShot:g.breakShot,
-  ballInHand:g.ballInHand,calledPocket:g.calledPocket,score:g.score||{a:0,b:0},fx:g.fx||null}
+  ballInHand:g.ballInHand,calledPocket:g.calledPocket,score:g.score||{a:0,b:0},fx:g.fx||null,...(g.push?{push:g.push}:{})}
 }
 
 export function applySnapshot(g,s){
@@ -35,5 +36,6 @@ export function applySnapshot(g,s){
  g.assignment=s.assignment||null;g.breakShot=s.breakShot;g.ballInHand=s.ballInHand
  g.calledPocket=s.calledPocket
  g.fx=s.fx||null
+ g.push=s.push||null
  g.score=s.score||{a:0,b:0}   // absent before bank pool and one-pocket existed
 }
