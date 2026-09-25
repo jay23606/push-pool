@@ -4,7 +4,7 @@ const groups=new Set(['cue','solid','stripe','eight'])
 const phase=new Set(['aim','roll'])
 const player=new Set(['a','b'])
 const finite=n=>typeof n==='number'&&Number.isFinite(n)
-const RACK_SIZE={'8ball':16,'9ball':10,'10ball':11,bank:16,onepocket:16,straight:16,chaos:16,push:16}
+const RACK_SIZE={'8ball':16,'9ball':10,'10ball':11,bank:16,onepocket:16,straight:16,chaos:16,push:16,push8:16}
 const MAX_DUMMIES=60
 const TWIST_TYPES=new Set(['bonus','bomb','well'])
 // a twist is a small record of numbers; anything else is refused
@@ -35,7 +35,7 @@ export function isGameMessage(m){
  if(!m.b.every(validBall))return false
  // P.U.S.H. Pool adds grey dummy balls (numbered 100 up) to the sixteen real ones; no other game has them
  const dummies=m.b.filter(b=>b[3]==='dummy').length
- if(dummies&&(mode!=='push'||dummies>MAX_DUMMIES))return false
+ if(dummies&&((mode!=='push'&&mode!=='push8')||dummies>MAX_DUMMIES))return false
  if(m.b.length-dummies!==size||new Set(m.b.map(b=>b[4])).size!==m.b.length)return false
  if(TOP_BALL[mode]&&!m.b.every(b=>b[4]<=TOP_BALL[mode]))return false   // nine-ball is balls 0-9, ten-ball 0-10
  if(!validTwist(m.fx))return false

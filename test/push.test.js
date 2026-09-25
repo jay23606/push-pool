@@ -580,3 +580,42 @@ test('the AI throws a mortar or bomb at a cluster, lights powder, arms pop when 
  assert.deepEqual(planUses(rich,{a:0,b:200},'b',balls,()=>.99),[],'and only sometimes')
  assert.deepEqual(planUses(rich,{a:0,b:200},'b',[{...cue,on:false},...balls.slice(1)],()=>0),[])
 })
+
+// ---- P.U.S.H. 8-ball ----
+import {judgePush8,judgeShot,PUSH_GIFT,isPush} from '../src/rules.js'
+import {legalTargets} from '../src/ai.js'
+
+const eight=(o)=>({mode:'push8',turn:'a',score:{a:0,b:0},groups:{a:null,b:null},potted:[],firstHit:{k:'solid',n:3},scratch:false,breakShot:false,balls:rack('8ball'),before:7,...o})
+const solid=n=>({n,k:'solid',on:false}),stripe=n=>({n,k:'stripe',on:false})
+
+test('push8 is a push mode, plays 8-ball rules, and shares the state and wire format',()=>{
+ assert.ok(isPush('push')&&isPush('push8')&&!isPush('8ball'));assert.ok(MODES.push8);assert.equal(isScoreMode('push8'),false)
+ assert.ok(freshRackState('push8').push);assert.equal(targetFor('push8'),PUSH_TARGET)
+ const snap8=snapshotOf({...freshRackState('push8'),balls:[...rack('push8'),makeDummy(100,50,50)],round:1});assert.ok(isGameMessage(snap8),'dummies are allowed in push8')
+})
+
+test('push8 points: own balls are ten and a level-up, the opponent gets a gift, dummies a point, a foul costs five',()=>{
+ const own=eight({groups:{a:'solid',b:'stripe'},potted:[solid(1),solid(2),stripe(9)]})
+ const v=judgeShot(own),e=judgePush8(own,v)
+ assert.equal(e.score.a,2*PUSH_POT);assert.equal(e.score.b,PUSH_GIFT);assert.equal(e.levelUps,2);assert.equal(e.winner,null)
+ const open=eight({potted:[solid(1)]}),vo=judgeShot(open)
+ assert.equal(vo.assign,'solid');const eo=judgePush8(open,vo);assert.equal(eo.score.a,PUSH_POT,'the ball that decides the group counts as yours');assert.equal(eo.levelUps,1)
+ const dum=eight({groups:{a:'solid',b:'stripe'},potted:[makeDummy(100,0,0)]}),ed=judgePush8(dum,judgeShot(dum));assert.equal(ed.score.a,1);assert.equal(ed.levelUps,0)
+ const foul=eight({groups:{a:'solid',b:'stripe'},score:{a:12,b:0},potted:[solid(1)],scratch:true}),vf=judgeShot(foul)
+ assert.equal(vf.foul,true);const ef=judgePush8(foul,vf);assert.equal(ef.score.a,12-PUSH_FOUL);assert.equal(ef.levelUps,0)
+})
+
+test('push8 ends by 8-ball rules or by reaching the points target',()=>{
+ const won=eight({groups:{a:'solid',b:'stripe'},potted:[{n:8,k:'eight',on:false}],before:0,calledPocket:2,eightPocket:2}),vw=judgeShot(won)
+ assert.equal(judgePush8(won,vw).winner,'a','a legal 8 wins')
+ const far=eight({groups:{a:'solid',b:'stripe'},score:{a:PUSH_TARGET-5,b:0},potted:[solid(1)]});assert.equal(judgePush8(far,judgeShot(far)).winner,'a','the target wins too')
+ const early=eight({groups:{a:'solid',b:'stripe'},potted:[{n:8,k:'eight',on:false}],before:3}),ve=judgeShot(early);assert.equal(judgePush8(early,ve).winner,'b','the 8 too soon loses, as ever')
+})
+
+test('a dummy ball is never a wrong first hit under 8-ball rules, and never an AI target',()=>{
+ const g={groups:{a:'solid',b:'stripe'},firstHit:makeDummy(100,0,0),potted:[],scratch:false,turn:'a',mode:'push8',breakShot:false,before:7}
+ assert.equal(judgeShot(g).foul,false,'touching only a dummy is contact, and not the wrong group')
+ assert.equal(judgeShot({...g,firstHit:{k:'stripe',n:9}}).reason,'wrong-first')
+ const balls=[cueAt(100,100),ball(1,200,100),makeDummy(100,300,100)]
+ assert.deepEqual(legalTargets(balls,null,'push8').map(b=>b.n),[1])
+})

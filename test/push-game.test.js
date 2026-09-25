@@ -562,3 +562,29 @@ test('the AI opponent throws its bomb before it shoots, and takes the shot once 
   assert.equal(g.tossing,true,'it threw first');assert.deepEqual(g.push.b.items,[])
  }finally{Math.random=realRandom}
 })
+
+// ---- P.U.S.H. 8-ball in a game ----
+test('a push8 shot: own group ball scores and offers a power, a foul costs points, and the table is not re-racked',()=>{
+ const {g}=game({mode:'push8',score:{a:0,b:0},groups:{a:'solid',b:'stripe'},balls:rack('push8')});clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250
+ const own=g.balls.find((b,i)=>i&&b.k==='solid');own.on=true;own.x=350;own.y=120
+ const opp=g.balls.find((b,i)=>i&&b.k==='stripe');opp.on=true;opp.x=600;opp.y=330
+ strike(cue,0,-1300);g.startShot();roll(g)
+ assert.equal(own.on,false);assert.equal(g.score.a,10);assert.equal(g.turn,'a');assert.equal(g.push.a.picks,1);assert.ok(g.push.offers)
+ assert.ok(g.balls.filter(b=>b.on).length<16,'no re-rack in 8-ball')
+})
+
+test('push8: hitting a dummy first is not a foul, and hitting only a dummy still counts as contact',()=>{
+ const {g}=game({mode:'push8',score:{a:20,b:0},groups:{a:'solid',b:'stripe'},balls:rack('push8')});clear(g)
+ const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=250
+ const own=g.balls.find((b,i)=>i&&b.k==='solid');own.on=true;own.x=600;own.y=330
+ const opp=g.balls.find((b,i)=>i&&b.k==='stripe');opp.on=true;opp.x=620;opp.y=300
+ g.balls.push(makeDummy(100,250,200))
+ strike(cue,200,-200);g.startShot();roll(g)
+ assert.equal(g.score.a,20,'no foul');assert.equal(g.turn,'b')
+})
+
+test('push8 shows the points panel and the push controls, and its powers work',()=>{
+ const {g}=game({mode:'push8',score:{a:60,b:0},groups:{a:'solid',b:'stripe'},balls:rack('push8'),push:{...freshPush(),a:{powers:{pop:1},items:[],picks:0}}})
+ g.canControl=()=>true;g.cycleArm('pop');assert.deepEqual(g.armed,{pop:1});g.applyArmed(g.armed,{});assert.equal(g.score.a,60-powerCost('pop',1))
+})

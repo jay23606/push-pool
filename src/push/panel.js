@@ -3,6 +3,7 @@ import {ITEMS} from './items.js'
 import {isPlaceable} from './placing.js'
 import {isTossable} from './toss.js'
 import {ITEMS as ITEM_DEFS} from './items.js'
+import {isPush} from '../rules.js'
 import {isArmable,TRAIL_VARIANTS} from './powers.js'
 
 // The P.U.S.H. Pool side panel: your points, powers and items, and the level-up choice when one is owed. It is plain DOM
@@ -13,7 +14,7 @@ const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className
 
 export function pushPanelState(game){
  const me=game.hotSeat?game.turn:game.me,push=game.push
- if(!push||game.mode!=='push')return null
+ if(!push||!isPush(game.mode))return null
  const mine=push[me]
  return {me,points:game.score?.[me]||0,powers:mine.powers,items:mine.items,picks:mine.picks,
   offers:game.turn===me&&!game.spectator?push.offers:null,
@@ -21,7 +22,7 @@ export function pushPanelState(game){
 }
 
 export function renderPushPanel(game){
- if(game.mode!=='push'){if(game.pushPanel){game.pushPanel.remove();game.pushPanel=null;game.pushSig=''}return}
+ if(!isPush(game.mode)){if(game.pushPanel){game.pushPanel.remove();game.pushPanel=null;game.pushSig=''}return}
  const st=pushPanelState(game)
  if(!st)return
  if(!game.pushPanel){

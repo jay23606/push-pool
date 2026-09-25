@@ -9,15 +9,17 @@ import {R,MINX,MAXX,MINY,MAXY,POCKETS} from './table.js'
 export const MODES={
  '8ball':{label:'8-ball',balls:16},'9ball':{label:'9-ball',balls:10},
  'bank':{label:'Bank pool',balls:16},'onepocket':{label:'One-pocket',balls:16},
- '10ball':{label:'10-ball',balls:11},'straight':{label:'Straight pool',balls:16},'chaos':{label:'Chaos Pool',balls:16},'push':{label:'P.U.S.H. Pool',balls:16}
+ '10ball':{label:'10-ball',balls:11},'straight':{label:'Straight pool',balls:16},'chaos':{label:'Chaos Pool',balls:16},'push':{label:'P.U.S.H. Pool',balls:16},'push8':{label:'P.U.S.H. 8-ball',balls:16}
 }
 export const modeOf=m=>MODES[m]?m:'8ball'
 // Bank pool and one-pocket are scored games: fifteen balls, any of them may be hit first, and the
 // first to eight wins. What they share is judged by judgeScoreGame().
+// Both P.U.S.H. modes carry the points, powers, items and hazards; 'push' scores by the ball, 'push8' plays 8-ball rules under it.
+export const isPush=m=>m==='push'||m==='push8'
 export const isScoreMode=m=>m==='bank'||m==='onepocket'||m==='straight'||m==='chaos'||m==='push'
 export const SCORE_TARGET=8
 // what wins each scored game: eight for the two short ones, thirty for straight pool
-export const targetFor=m=>m==='straight'?30:m==='chaos'?15:m==='push'?PUSH_TARGET:SCORE_TARGET
+export const targetFor=m=>m==='straight'?30:m==='chaos'?15:isPush(m)?PUSH_TARGET:SCORE_TARGET
 // Nine-ball and ten-ball share their rules: hit the lowest ball first, and the money ball wins.
 export const isRotation=m=>m==='9ball'||m==='10ball'
 export const MONEY={'9ball':9,'10ball':10}
@@ -30,7 +32,7 @@ export const BONUS_POCKET=6,BONUS_POINTS=3
 
 // P.U.S.H. Pool: score is points, and points are also what powers cost. A real ball is worth ten, a dummy one, a
 // foul costs five; the first to two hundred and fifty wins (a clean run of the table is 150, so games run long). Dummy balls are invisible to the rules (see push/dummy.js).
-export const PUSH_TARGET=250,PUSH_POT=10,PUSH_FOUL=5
+export const PUSH_TARGET=250,PUSH_POT=10,PUSH_FOUL=5,PUSH_GIFT=5    // GIFT: what their own ball, sunk by you, is worth to its owner
 
 export const other=t=>t==='a'?'b':'a'
 export const kind=n=>n===8?'eight':n<8?'solid':'stripe'
@@ -112,7 +114,7 @@ export function judgeShot(s){
  const black=s.potted.some(b=>b.k==='eight')
  const onTheEight=s.before===0
  const noContact=!s.firstHit
- const wrongFirst=!!s.firstHit&&(open
+ const wrongFirst=!!s.firstHit&&!isDummy(s.firstHit)&&(open
   ? s.firstHit.k==='eight'
   : s.firstHit.k!==(onTheEight?'eight':group))
 
@@ -141,6 +143,29 @@ export function judgeShot(s){
  const madeOwn=group?s.potted.some(b=>b.k===group)
                     :s.potted.some(b=>b.k==='solid'||b.k==='stripe')
  return {winner:null,foul:false,reason:null,assign,nextTurn:madeOwn?shooter:other(shooter)}
+}
+
+// ---- P.U.S.H. 8-ball ----
+//
+// 8-ball rules decide fouls, turns, groups and the 8; this adds what the shot was worth in points. Your own group's balls
+// are worth ten each and a level-up, an opponent's ball you sink is a gift of five to its owner, a dummy is a point, and a foul
+// costs five. On an open table (the break, or before groups) any object ball counts as yours. Reaching the target wins as well
+// as the 8 does. `v` is the 8-ball verdict from judgeShot; returns {score,levelUps,winner}.
+export function judgePush8(s,v){
+ const shooter=s.turn,opp=other(shooter),score={a:s.score?.a||0,b:s.score?.b||0}
+ const group=v.assign||normalizeGroup(s.groups?.[shooter])
+ let levelUps=0
+ if(v.foul)score[shooter]=Math.max(0,score[shooter]-PUSH_FOUL)
+ else{
+  for(const b of s.potted){
+   if(isDummy(b)){score[shooter]+=DUMMY_POINTS;continue}
+   if(b.k==='eight'||b.k==='cue')continue
+   if(!group||b.k===group){score[shooter]+=PUSH_POT;levelUps++}
+   else score[opp]+=PUSH_GIFT
+  }
+ }
+ const winner=v.winner||(score[shooter]>=PUSH_TARGET?shooter:score[opp]>=PUSH_TARGET?opp:null)
+ return {score,levelUps,winner}
 }
 
 // ---- nine-ball ----
