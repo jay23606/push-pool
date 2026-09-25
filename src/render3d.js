@@ -263,7 +263,7 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
   const ring=new THREE.Mesh(new THREE.TorusGeometry(RANGE[ITEMS[pl.item].range],.8,6,72),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.4,depthWrite:false}))
   ring.rotation.x=Math.PI/2;ring.position.set(tx(cue.x),1,tz(cue.y));ghostGroup.add(ring)
   for(const o of shapeOf(pl.item,pl.pos.x,pl.pos.y,pl.rot)){
-   if(o.t==='bumper'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,16,24),mat());m.position.set(tx(o.x),8,tz(o.y));ghostGroup.add(m)}
+   if(o.t==='bumper'||o.t==='mine'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,o.t==='mine'?3:16,24),mat());m.position.set(tx(o.x),8,tz(o.y));ghostGroup.add(m)}
    else{const len=Math.hypot(o.x2-o.x1,o.y2-o.y1)+WALL_R*2,m=new THREE.Mesh(new THREE.BoxGeometry(len,12,WALL_R*2),mat());m.position.set(tx((o.x1+o.x2)/2),6,tz((o.y1+o.y2)/2));m.rotation.y=-Math.atan2(o.y2-o.y1,o.x2-o.x1);ghostGroup.add(m)}
   }
  }
@@ -277,6 +277,7 @@ export async function createRenderer3D(canvas,camera3d='top',options={}){
   for(const o of list){
    if(o.t==='bumper'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,16,28),new THREE.MeshStandardMaterial({color:'#9aa0a3',metalness:.7,roughness:.3}));m.position.set(tx(o.x),8,tz(o.y));obsGroup.add(m)}
    else if(o.t==='wall'){const len=Math.hypot(o.x2-o.x1,o.y2-o.y1)+WALL_R*2,m=new THREE.Mesh(new THREE.BoxGeometry(len,12,WALL_R*2),new THREE.MeshStandardMaterial({color:'#d8c58c',roughness:.5}));m.position.set(tx((o.x1+o.x2)/2),6,tz((o.y1+o.y2)/2));m.rotation.y=-Math.atan2(o.y2-o.y1,o.x2-o.x1);obsGroup.add(m)}
+   else if(o.t==='mine'){const m=new THREE.Mesh(new THREE.CylinderGeometry(o.r,o.r,3,24),new THREE.MeshStandardMaterial({color:'#3a1212',emissive:'#ff3c1e',emissiveIntensity:.5,roughness:.5}));m.position.set(tx(o.x),1.6,tz(o.y));obsGroup.add(m)}
    else if(o.t==='portal'){const c=PORTAL_COLORS[Math.floor(pi++/2)%PORTAL_COLORS.length],ringM=new THREE.Mesh(new THREE.TorusGeometry(o.r,2,8,40),new THREE.MeshBasicMaterial({color:c})),disc=new THREE.Mesh(new THREE.CircleGeometry(o.r,40),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.3,depthWrite:false}));for(const m of [ringM,disc]){m.rotation.x=-Math.PI/2;m.position.set(tx(o.x),1.4,tz(o.y));obsGroup.add(m)}}
   }
  }

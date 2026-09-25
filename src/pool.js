@@ -7,7 +7,7 @@ import {drawTwist,blast,wellPull,bonusPocket,twistName} from './chaos.js'
 import {collectPickups,afterShot,choosePower,payPower,payArmed} from './push/logic.js'
 import {renderPushPanel} from './push/panel.js'
 import {powerCost,isArmable,FIELD_RADIUS,POP_RADIUS_R,MAX_POPS} from './push/powers.js'
-import {placeItem,whyNotPlace,isPlaceable} from './push/placing.js'
+import {placeItem,whyNotPlace,isPlaceable,MINE_BLAST_R,MINE_BLAST_POWER} from './push/placing.js'
 import {ITEMS} from './push/items.js'
 import {newRun as newRogueRun,judge as judgeRogue,choose as chooseRogue,advance as advanceRogue,offer as offerRogue,POCKET_BOOST} from './rogue.js'
 import {other,remaining as countLeft,nearestPocket,validCueSpot,judgeShot,opposite,normalizeGroup,modeOf,lowestBall,nineRespot,MODES,isScoreMode,ONE_POCKET,targetFor,isRotation,MONEY,trianglePositions,kind} from './rules.js'
@@ -413,6 +413,14 @@ export class PoolGame{
    }
   }
  }
+ // A landmine goes off when any ball rolls over it: the balls around it are thrown outward and the mine is gone.
+ mineCheck(){
+  const list=this.push?.obstacles;if(!list?.some(o=>o.t==='mine'))return
+  const blown=list.filter(o=>o.t==='mine'&&this.balls.some(b=>b.on&&!airborne(b)&&Math.hypot(b.x-o.x,b.y-o.y)<R+o.r))
+  if(!blown.length)return
+  for(const m of blown)blast(this.balls,m,{radius:MINE_BLAST_R*R,power:MINE_BLAST_POWER})
+  this.push={...this.push,obstacles:list.filter(o=>!blown.includes(o))};this.syncObstacles();this.flash('BOOM')
+ }
  popped(){
   const fx=this.shotFx;if(!fx?.pop||(this.pops||0)>=MAX_POPS)return
   this.pops=(this.pops||0)+1;blast(this.balls,this.balls[0],{radius:POP_RADIUS_R*R,power:fx.pop.force})
@@ -430,7 +438,7 @@ export class PoolGame{
   this.flash(items.length?'Picked up '+ITEMS[items[0].id].name:'+'+gems)
  }
  sub(dt){
-  this.collect();this.shotEffects(dt)
+  this.collect();this.shotEffects(dt);if(this.mode==='push')this.mineCheck()
   const well=this.fx&&this.fx.type==='well'?this.fx:null,pockets=this.pocketList(),scale=this.pocketScale()
   for(const b of this.balls){
    if(!b.on)continue

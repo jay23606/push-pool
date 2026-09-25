@@ -192,3 +192,23 @@ test('a shot with pop armed clears it from the table when the shot ends, and nev
  strike(cue,0,-900);g.startShot();roll(g)
  assert.equal(g.shotFx,null);assert.equal(g.score.a>=100-25,true,'the power was paid for once')
 })
+
+// ---- landmine ----
+test('a landmine is placed like a barrier, then goes off under a rolling ball and throws its neighbours',()=>{
+ const {g,flashes}=game({push:{...freshPush(),a:{powers:{},items:['landmine'],picks:0}}});clear(g);g.canControl=()=>true
+ const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190
+ g.startPlacing('landmine');g.movePlacing({x:270,y:190});g.confirmPlace()
+ assert.equal(g.push.obstacles.length,1);assert.equal(g.push.obstacles[0].t,'mine');assert.deepEqual(g.push.a.items,[])
+ const near=put(g,1,300,230);put(g,14,600,330);put(g,15,620,300)
+ strike(cue,500,0);g.startShot();roll(g,2)
+ assert.ok(flashes.includes('BOOM'));assert.equal(g.push.obstacles.some(o=>o.t==='mine'),false,'the mine is gone')
+ assert.ok(Math.hypot(near.vx,near.vy)>1||Math.hypot(near.x-300,near.y-230)>5,'the neighbour was thrown')
+})
+
+test('a mine nothing rolls over stays put, and cannot be placed on a ball or too far away',()=>{
+ const {g}=game({push:{...freshPush(),a:{powers:{},items:['landmine'],picks:0}}});clear(g);g.canControl=()=>true
+ const cue=g.balls[0];cue.on=true;cue.x=200;cue.y=190;put(g,14,600,330);put(g,15,620,300)
+ g.startPlacing('landmine');g.movePlacing({x:200+181,y:190});g.confirmPlace();assert.equal(g.push.obstacles.length,0,'beyond medium range')
+ g.movePlacing({x:300,y:80});g.confirmPlace();assert.equal(g.push.obstacles.length,1)
+ strike(cue,300,0);g.startShot();roll(g,1);assert.equal(g.push.obstacles.length,1,'the shot missed it')
+})

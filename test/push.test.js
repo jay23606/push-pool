@@ -293,7 +293,7 @@ test('placeable items turn into the obstacle records the physics already knows',
  const tilted=shapeOf('wall',200,190,Math.PI/2);assert.ok(Math.abs(tilted[0].x1-tilted[0].x2)<1e-9,'rotated a quarter turn it stands upright')
  assert.equal(shapeOf('cube',200,190,.4).length,4,'a cube is four walls')
  assert.equal(shapeOf('pillar',200,190)[0].t,'bumper')
- assert.deepEqual(PLACEABLE,['wall','cube','pillar']);assert.deepEqual(shapeOf('bomb',1,1),[])
+ assert.deepEqual(PLACEABLE,['wall','cube','pillar','landmine']);assert.deepEqual(shapeOf('bomb',1,1),[])
 })
 
 test('a placed wall really stops a ball: the physics treats it like any obstacle',()=>{

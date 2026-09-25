@@ -21,7 +21,7 @@ const validSpawn=s=>s&&typeof s==='object'&&SPAWN_TYPES[s.type]&&Number.isIntege
 const validPickup=k=>k&&typeof k==='object'&&fin(k.x)&&fin(k.y)&&Number.isInteger(k.ttl)&&k.ttl>=0&&k.ttl<=9
  &&(k.kind==='gem'?Number.isInteger(k.v)&&k.v>=1&&k.v<=99:k.kind==='item'&&Boolean(ITEMS[k.id]))
 
-const validObstacle=o=>o&&typeof o==='object'&&Number.isInteger(o.ttl)&&o.ttl>=0&&o.ttl<=12&&(o.t==='bumper'?['x','y','r'].every(k=>fin(o[k])):o.t==='wall'&&['x1','y1','x2','y2'].every(k=>fin(o[k])))
+const validObstacle=o=>o&&typeof o==='object'&&Number.isInteger(o.ttl)&&o.ttl>=0&&o.ttl<=12&&((o.t==='bumper'||o.t==='mine')?['x','y','r'].every(k=>fin(o[k])):o.t==='wall'&&['x1','y1','x2','y2'].every(k=>fin(o[k])))
 
 export function validPush(p){
  if(p===undefined||p===null)return true
