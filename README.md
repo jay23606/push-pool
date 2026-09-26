@@ -36,8 +36,9 @@ Points are the score **and** what powers cost.
 | **Dummy balls** | Grey, normal physics, invisible to the rules. Rutabagas are dummies that make collisions unstable. |
 | **AI** | The practice opponent throws bombs at clusters, lights powder, and arms pop or cute. |
 
-Every item, power, hazard and bonus in `docs/DESIGN.md` is built. Not built: the no-solids multi-player / team mode with more than
-two players (a house rule already gives one shot per turn, which is the rest of that mode).
+Every item, power, hazard and bonus in `docs/DESIGN.md` is built, including the no-solids multi-player mode: **Party** in the lobby
+plays P.U.S.H. Pool with 3-6 players (or two teams) on one device, one shot per turn, each seat with its own points, powers and items.
+Online rooms are still two players (plus spectators).
 
 ## How it fits together
 
