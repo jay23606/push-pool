@@ -989,7 +989,9 @@ export class PoolGame{
    this.simClock=(this.simClock||0)+STEP*1000
    // a table that has not settled after this long (a ball orbiting a black hole, say) is stopped where it is, so a game cannot hang
    this.rollTime=(this.rollTime||0)+STEP
-   if(this.rollTime>MAX_ROLL_SECONDS){this.balls.forEach(clearMotion);this.rollTime=0;this.stalls=(this.stalls||0)+1}
+   // a ball creeping along a cushion at a few units a second never quite counts as at rest: after a moment of nothing faster, stop it
+   {let top=0;for(const b of this.balls)if(b.on)top=Math.max(top,Math.abs(b.vx)+Math.abs(b.vy));this.slowFor=top<30?(this.slowFor||0)+STEP:0;if(this.slowFor>4){this.balls.forEach(clearMotion);this.slowFor=0}}
+   if(this.rollTime>MAX_ROLL_SECONDS){this.stallInfo=this.balls.filter(b=>b.on&&(Math.abs(b.vx)>1||Math.abs(b.vy)>1)).map(b=>[b.n,Math.round(b.x),Math.round(b.y),Math.round(b.vx),Math.round(b.vy),Math.round(b.z||0)]);this.balls.forEach(clearMotion);this.rollTime=0;this.stalls=(this.stalls||0)+1}
    if(this.rec&&this.simClock-(this.recAt??-1e9)>=40){this.recAt=this.simClock;this.rec.frame(this.simClock,this.balls)}
    if(this.balls.every(b=>!b.on||atRest(b))){this.resolve();break}
   }

@@ -10,6 +10,7 @@ import {shotSpeed} from '../src/pool.js'
 import {DROPPABLE} from '../src/push/items.js'
 import {isPlaceable} from '../src/push/placing.js'
 import {validPush} from '../src/push/state.js'
+import {setObstacles} from '../src/obstacles.js'
 import {isTossable} from '../src/push/toss.js'
 import {POWER_IDS} from '../src/push/powers.js'
 import {ARMABLE} from '../src/push/powers.js'
@@ -30,6 +31,7 @@ function makeGame(mode,seed){
   spectator:false,jumpOn:false,armed:{}})
  g.canControl=()=>g.phase==='aim'&&!g.over&&!g.tossing
  g.canAim=()=>g.canControl()&&!g.ballInHand
+ setObstacles([])      // the obstacle list is module state: a game starts with none, as a real one does when it racks
  g.sync()
  return g
 }
@@ -39,7 +41,7 @@ function settle(g,seconds=40){
  g.clock=now
  // a shot that never comes to rest would hang a real game: the game's own failsafe stops it after thirty seconds, but needing
  // that failsafe at all means something is keeping balls moving, so it is a failure here too
- assert.ok(!g.stalls,'the table had to be stopped by the thirty-second failsafe: something keeps balls moving; obstacles '+JSON.stringify(g.push.obstacles.map(o=>[o.t,o.variant,o.x,o.y,o.ttl,o.vol]))+' balls '+JSON.stringify(g.balls.filter(b=>b.on&&b.k!=='cue').map(b=>[b.n,b.k,Math.round(b.x),Math.round(b.y),b.pit?1:0])).slice(0,300)+' fx '+JSON.stringify(g.shotFx)+' rollers '+JSON.stringify(g.push.rollers))
+ assert.ok(!g.stalls,'the table had to be stopped by the thirty-second failsafe: something keeps balls moving; obstacles '+JSON.stringify(g.push.obstacles.map(o=>[o.t,o.variant,o.x,o.y,o.ttl,o.vol]))+' balls '+JSON.stringify(g.balls.filter(b=>b.on&&b.k!=='cue').map(b=>[b.n,b.k,Math.round(b.x),Math.round(b.y),b.pit?1:0,Math.round(b.vx),Math.round(b.vy),Math.round(b.z||0)]).filter(t=>t[5]||t[6]||t[7])).slice(0,300)+' stalled '+JSON.stringify(g.stallInfo)+' fx '+JSON.stringify(g.shotFx)+' rollers '+JSON.stringify(g.push.rollers))
  assert.equal(g.phase,'aim','the table did not come to rest within '+seconds+' seconds; still moving: '+JSON.stringify(g.balls.filter(b=>b.on&&(Math.abs(b.vx)>1||Math.abs(b.vy)>1)).map(b=>[b.n,Math.round(b.x),Math.round(b.y),Math.round(b.vx),Math.round(b.vy)])).slice(0,6)+' obstacles '+g.push.obstacles.map(o=>o.t).join(','))
 }
 function healthy(g,note){
@@ -121,7 +123,7 @@ for(const mode of ['push','push8']){
     }
     assert.ok(turns>=10||g.over,'the game got somewhere before it ended')
     healthy(g,'the end')
-   }finally{Math.random=real}
+   }finally{Math.random=real;setObstacles([])}
   })
  }
 }

@@ -3,6 +3,7 @@ import {PoolGame} from '../src/pool.js'
 import {rack} from '../src/rules.js'
 import {freshPush} from '../src/push/state.js'
 import {parseGameMessage} from '../src/protocol.js'
+import {setObstacles} from '../src/obstacles.js'
 import {DROPPABLE} from '../src/push/items.js'
 import {isPlaceable} from '../src/push/placing.js'
 import {isTossable} from '../src/push/toss.js'
@@ -60,7 +61,7 @@ for(const mode of ['push','push8']){
   test(`pair: ${mode}, seed ${seed}: a host and a guest over a JSON bus stay in step for twenty turns`,()=>{
    const rand=seeded(seed*31337),real=Math.random;Math.random=seeded(seed*7777)
    try{
-    const {host,guest,wire,flush}=pair(mode);host.sync();flush();host.dealRand=rand
+    setObstacles([]);const {host,guest,wire,flush}=pair(mode);host.sync();flush();host.dealRand=rand
     same(host,guest,'at the start')
     const did={turns:0,guestShots:0,guestItems:0,refusedByRule:0}
     for(let turn=0;turn<20&&!host.over;turn++){
@@ -98,7 +99,7 @@ for(const mode of ['push','push8']){
      assert.equal(wire.refused,0,note+': the receiving side refused a message')
     }
     assert.ok(host.over||did.refusedByRule>5||(did.turns>=6&&did.guestShots>=2),'the guest and the host both really played: '+JSON.stringify(did))
-   }finally{Math.random=real}
+   }finally{Math.random=real;setObstacles([])}
   })
  }
 }
