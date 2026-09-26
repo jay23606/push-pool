@@ -724,3 +724,31 @@ test('the obstacle list is capped at what the wire allows too, oldest first',()=
   assert.ok(r.push.obstacles.length<=60);assert.ok(validPush(r.push))
  }
 })
+
+// ---- more than two players ----
+import {SEATS,nextSeat,teamOf,winnerOf} from '../src/rules.js'
+
+test('seats take turns in order and wrap; two seats are the usual two-player game',()=>{
+ const four=SEATS.slice(0,4);assert.deepEqual(four,['a','b','c','d'])
+ assert.deepEqual(four.map(p=>nextSeat(four,p)),['b','c','d','a']);assert.equal(nextSeat(['a','b'],'a'),'b');assert.equal(nextSeat(['a','b'],'b'),'a')
+ assert.deepEqual(four.map(p=>teamOf(four,p)),[0,1,0,1])
+ assert.deepEqual(freshPush(four).c,{powers:{},items:[],picks:0});assert.deepEqual(Object.keys(freshRackState('push',four).score),four);assert.deepEqual(Object.keys(freshRackState('push').score),['a','b'])
+})
+
+test('winning: a seat at the target, or a team whose members together reach it',()=>{
+ const seats=SEATS.slice(0,4)
+ assert.equal(winnerOf(seats,{a:10,b:250,c:0,d:0},250),'b');assert.equal(winnerOf(seats,{a:10,b:20,c:30,d:40},250),null)
+ assert.equal(winnerOf(seats,{a:120,b:100,c:130,d:100},250,true),'c','a and c together, named by the higher scorer')
+ assert.equal(winnerOf(seats,{a:110,b:150,c:100,d:110},250,true),'b','b and d together')
+ assert.equal(winnerOf(seats,{a:249,b:0,c:0,d:0},250,true),null);assert.equal(winnerOf(seats,{a:200,b:0,c:0,d:0},250),null)
+})
+
+test('the judge passes the turn round the table, and points go to whoever shot',()=>{
+ const seats=SEATS.slice(0,4)
+ const v=judgeScoreGame(shot({seats,turn:'c',score:{a:0,b:0,c:5,d:0},potted:[],firstHit:{n:3}}));assert.equal(v.nextTurn,'d','a miss passes to the next seat, not the opponent')
+ const wrap=judgeScoreGame(shot({seats,turn:'d',score:{a:0,b:0,c:0,d:0},potted:[]}));assert.equal(wrap.nextTurn,'a')
+ const pot=judgeScoreGame(shot({seats,turn:'b',score:{a:0,b:0,c:0,d:0},potted:[real(3)]}));assert.equal(pot.score.b,PUSH_POT);assert.equal(pot.nextTurn,'b');assert.deepEqual(Object.keys(pot.score),seats)
+ const one=judgeScoreGame(shot({seats,turn:'b',oneShot:true,potted:[real(3)]}));assert.equal(one.nextTurn,'c')
+ const team=judgeScoreGame(shot({seats,teams:true,turn:'a',score:{a:120,b:0,c:120,d:0},potted:[real(3)]}));assert.equal(team.winner,'a','the pot took team a and c past the target together')
+ const foul=judgeScoreGame(shot({seats,turn:'c',score:{a:0,b:0,c:20,d:0},scratch:true}));assert.equal(foul.score.c,15);assert.equal(foul.nextTurn,'d')
+})

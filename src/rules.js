@@ -35,6 +35,22 @@ export const BONUS_POCKET=6,BONUS_POINTS=3
 export const PUSH_TARGET=250,PUSH_POT=10,PUSH_FOUL=5,PUSH_GIFT=5    // GIFT: what their own ball, sunk by you, is worth to its owner
 
 export const other=t=>t==='a'?'b':'a'
+// More than two players (P.U.S.H. Pool, one device): the seats are a, b, c ... in turn order, and with teams the even seats play
+// the odd ones. Two players are just the seats ['a','b'], so everything below reduces to the usual two-player game.
+export const SEATS=['a','b','c','d','e','f']
+export const nextSeat=(seats,t)=>seats[(seats.indexOf(t)+1)%seats.length]
+export const teamOf=(seats,t)=>seats.indexOf(t)%2
+// Who has won, if anyone: a seat at the target, or (with teams) a team whose scores together reach it, named by its top scorer.
+export function winnerOf(seats,score,target,teams=false){
+ if(teams){
+  for(const team of [0,1]){
+   const mine=seats.filter(p=>teamOf(seats,p)===team)
+   if(mine.reduce((n,p)=>n+score[p],0)>=target)return mine.reduce((a,b)=>score[b]>score[a]?b:a)
+  }
+  return null
+ }
+ return seats.find(p=>score[p]>=target)||null
+}
 export const kind=n=>n===8?'eight':n<8?'solid':'stripe'
 export const opposite=g=>g==='solid'?'stripe':'solid'
 // Older room state may have used the display labels. Normalize at the rules
@@ -221,8 +237,8 @@ export function judgeNineBall(s,money=9){
 // Takes: mode, turn, score {a,b}, potted (object balls), pockets (or pocketOf) {ball: pocket}, railBalls (balls
 // that touched a cushion; an array or a Set), scratch, firstHit, and balls (the table after the shot).
 export function judgeScoreGame(s){
- const shooter=s.turn,opponent=other(shooter),mode=modeOf(s.mode)
- const score={a:s.score?.a||0,b:s.score?.b||0}
+ const seats=s.seats||['a','b'],shooter=s.turn,opponent=nextSeat(seats,shooter),mode=modeOf(s.mode)
+ const score=Object.fromEntries(seats.map(p=>[p,s.score?.[p]||0]))
  const rails=new Set(s.railBalls||[])
  const pockets=s.pockets||s.pocketOf      // a game object keeps this as pocketOf; a bare test shot says pockets
  const reason=s.scratch?'scratch':!s.firstHit?'no-contact':null
@@ -244,7 +260,7 @@ export function judgeScoreGame(s){
  const target=s.scoreTarget||targetFor(mode)     // a house rule may set it for straight pool
  if(mode==='straight'||mode==='chaos')score[shooter]-=reason?1:0     // a foul costs a point
  if(mode==='push'&&reason)score[shooter]=Math.max(0,score[shooter]-PUSH_FOUL)
- let winner=score.a>=target?'a':score.b>=target?'b':null
+ let winner=winnerOf(seats,score,target,Boolean(s.teams))
  if(!winner&&left===0&&mode!=='straight'&&mode!=='chaos'&&mode!=='push')winner=score.a>score.b?'a':score.b>score.a?'b':opponent
  const kept=!reason&&credited.some(c=>c.to===shooter)&&!s.oneShot     // a house rule can make every turn a single shot
  // straight pool is continuous: when one ball is left the fourteen are racked again around it

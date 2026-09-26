@@ -730,3 +730,32 @@ test('the host records each callout with its sound, so a guest sees and hears it
  for(const bad of [{id:'1',text:'x',sound:null},{id:1,text:5,sound:null},{id:1,text:'x',sound:'bang'},{id:1,text:'x'.repeat(200),sound:null}])assert.equal(isGameMessage({...wire,fm:bad}),false,JSON.stringify(bad))
  const {g:plain}=game({mode:'8ball'});plain.flash=PoolGame.prototype.flash;plain.callout={textContent:'',classList:{add(){},remove(){}}};plain.flash('BOOM');assert.equal(plain.fm,undefined,'other modes are untouched')
 })
+
+// ---- a party ----
+test('a party of four plays in turn: a foul or a one-shot pot passes to the next seat, and the last wraps to the first',()=>{
+ const seats=['a','b','c','d'],names={a:'P1',b:'P2',c:'P3',d:'P4'}
+ const {g}=game({seats,names,score:{a:0,b:0,c:0,d:0},push:freshPush(seats),house:{race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false,cannon:false,oneShot:true},oneShot:true})
+ assert.equal(g.nameOf('c'),'P3');assert.equal(PoolGame.prototype.nameOf.call({names:{}},'e'),'Player 5')
+ const seen=[]
+ for(let i=0;i<5;i++){
+  clear(g);const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250;put(g,1,350,120);put(g,14,600,330);put(g,15,620,300)
+  seen.push(g.turn);strike(cue,0,-1300);g.startShot();roll(g)
+  assert.ok(g.score[seen[i]]>=10,'the shooter scored')
+ }
+ assert.deepEqual(seen,['a','b','c','d','a'],'a pot ends a turn under the one-shot rule, and the seats wrap')
+ assert.deepEqual(Object.keys(g.push).filter(k=>'abcd'.includes(k)),seats);assert.equal(g.push.c.picks,1,'each seat keeps its own owed level-up')
+})
+
+test('a party winner: the first seat to the target ends the game, and with teams the pair does',()=>{
+ const seats=['a','b','c','d']
+ const {g}=game({seats,score:{a:245,b:0,c:0,d:0},push:freshPush(seats)});clear(g);const cue=g.balls[0];cue.on=true;cue.x=350;cue.y=250;put(g,1,350,120);put(g,14,600,330);put(g,15,620,300)
+ let winner=null;g.onFinish=r=>{winner=r.winner};strike(cue,0,-1300);g.startShot();roll(g);assert.equal(winner,'a');assert.equal(g.over,true)
+ const {g:t}=game({seats,teams:true,score:{a:100,b:0,c:145,d:0},push:freshPush(seats),turn:'c'});clear(t);const c2=t.balls[0];c2.on=true;c2.x=350;c2.y=250;put(t,1,350,120);put(t,14,600,330);put(t,15,620,300)
+ let tw=null;t.onFinish=r=>{tw=r.winner};strike(c2,0,-1300);t.startShot();roll(t);assert.equal(tw,'c','a and c reached the target together, named by the top scorer')
+})
+
+test('a party status line lists everyone and marks the shooter',()=>{
+ const seats=['a','b','c'],{g}=game({seats,names:{a:'Ann',b:'Bo',c:'Cy'},score:{a:10,b:20,c:30},push:freshPush(seats),turn:'b'})
+ assert.equal(g.partyText(),'ANN 10 · ▶ BO 20 · CY 30 · FIRST TO 250')
+ g.teams=true;assert.match(g.partyText(),/TEAMS$/)
+})

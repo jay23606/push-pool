@@ -22,12 +22,12 @@ import {ARMABLE} from '../src/push/powers.js'
 
 const seeded=seed=>{let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296}}
 
-function makeGame(mode,seed){
+function makeGame(mode,seed,seats=['a','b']){
  const g=Object.create(PoolGame.prototype)
  Object.assign(g,{mode,turn:'a',phase:'aim',over:false,result:'',finished:false,round:1,groups:{a:null,b:null},assignment:null,breakShot:mode==='push8',
   calledPocket:null,ballInHand:false,placed:false,practice:false,hotSeat:true,names:{a:'A',b:'B'},ready:true,me:'a',host:true,shots:{a:0,b:0},acc:0,
-  flash(){},setSpin(){},send(){},onSave(){},onFinish(){},onShot(){},onReplay(){},score:{a:0,b:0},breaker:'a',balls:rack(mode),power:{value:50},spin:{a:0,b:0},
-  aiming:true,angle:0,fx:null,push:freshPush(),house:{race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false,cannon:false,oneShot:seed%2===0},oneShot:seed%2===0,
+  flash(){},setSpin(){},send(){},onSave(){},onFinish(){},onShot(){},onReplay(){},score:Object.fromEntries(seats.map(p=>[p,0])),seats,teams:seats.length>2&&seed%2===1,breaker:'a',balls:rack(mode),power:{value:50},spin:{a:0,b:0},
+  aiming:true,angle:0,fx:null,push:freshPush(seats),house:{race:3,ballInHand:'anywhere',breaker:'host',straightTo:30,jumps:false,cannon:false,oneShot:seed%2===0},oneShot:seed%2===0,
   spectator:false,jumpOn:false,armed:{}})
  g.canControl=()=>g.phase==='aim'&&!g.over&&!g.tossing
  g.canAim=()=>g.canControl()&&!g.ballInHand
@@ -109,17 +109,17 @@ function playTurn(g,rand,note){
  if(g.push[g.turn].items.includes('mulligan')&&rand()<.3){g.applyUse(g.turn,'mulligan');healthy(g,note+' after a mulligan')}
 }
 
-for(const mode of ['push','push8']){
+for(const [mode,players] of [['push',2],['push8',2],['push',4]]){
  // SOAK_SEEDS=1,2,3,... runs others (a wider sweep to hunt for bugs)
  for(const seed of (process.env.SOAK_SEEDS||'11,12,13').split(',').map(Number)){
-  test(`soak: ${mode}, seed ${seed}: thirty turns of every feature at once, nothing throws or breaks the wire format`,()=>{
+  test(`soak: ${mode}${players>2?' party of '+players:''}, seed ${seed}: thirty turns of every feature at once, nothing throws or breaks the wire format`,()=>{
    const rand=seeded(seed*7919),real=Math.random;Math.random=seeded(seed*104729)
    try{
-    const g=makeGame(mode,seed);let turns=0
+    const g=makeGame(mode,seed,['a','b','c','d','e','f'].slice(0,players));let turns=0
     for(;turns<30&&!g.over;turns++){
      g.dealRand=rand
      playTurn(g,rand,`turn ${turns}`)
-     assert.ok(isPush(g.mode));assert.ok(g.turn==='a'||g.turn==='b')
+     assert.ok(isPush(g.mode));assert.ok(g.seats.includes(g.turn))
     }
     assert.ok(turns>=10||g.over,'the game got somewhere before it ended')
     healthy(g,'the end')

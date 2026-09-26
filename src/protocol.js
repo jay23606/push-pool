@@ -2,7 +2,8 @@ import {validPush} from './push/state.js'
 import {POWERS,TRAIL_VARIANTS} from './push/powers.js'
 const groups=new Set(['cue','solid','stripe','eight'])
 const phase=new Set(['aim','roll'])
-const player=new Set(['a','b'])
+const SEAT_IDS=['a','b','c','d','e','f']       // a party has up to six; every game has a and b
+const player=new Set(SEAT_IDS)
 const finite=n=>typeof n==='number'&&Number.isFinite(n)
 const RACK_SIZE={'8ball':16,'9ball':10,'10ball':11,bank:16,onepocket:16,straight:16,chaos:16,push:16,push8:16}
 const MAX_DUMMIES=60
@@ -43,7 +44,7 @@ export function isGameMessage(m){
  // the last callout the host showed (P.U.S.H. Pool), so a guest sees the same ones: an id to show each once, some text, a sound
  if(m.fm!==undefined&&m.fm!==null&&!(typeof m.fm==='object'&&Number.isInteger(m.fm.id)&&typeof m.fm.text==='string'&&m.fm.text.length<=120&&(m.fm.sound===null||m.fm.sound==='boom'||m.fm.sound==='chime')))return false
  // the score of a scored game: two small whole numbers, and absent before those games existed
- if(m.score!==undefined&&!(m.score&&typeof m.score==='object'&&['a','b'].every(p=>Number.isInteger(m.score[p])&&m.score[p]>=-99&&m.score[p]<=999)))return false
+ if(m.score!==undefined&&!(m.score&&typeof m.score==='object'&&['a','b'].every(p=>Number.isInteger(m.score[p]))&&Object.entries(m.score).every(([p,v])=>SEAT_IDS.includes(p)&&Number.isInteger(v)&&v>=-99&&v<=999)))return false
  return m.groups&&['a','b'].every(p=>m.groups[p]===null||m.groups[p]==='solid'||m.groups[p]==='stripe')
 }
 

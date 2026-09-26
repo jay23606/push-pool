@@ -18,7 +18,7 @@ import {giveItem,useItem} from './push/economy.js'
 import {freeSpot} from './push/logic-spots.js'
 import {ITEMS} from './push/items.js'
 import {newRun as newRogueRun,judge as judgeRogue,choose as chooseRogue,advance as advanceRogue,offer as offerRogue,POCKET_BOOST} from './rogue.js'
-import {other,remaining as countLeft,nearestPocket,validCueSpot,judgeShot,opposite,normalizeGroup,modeOf,lowestBall,nineRespot,MODES,isScoreMode,ONE_POCKET,targetFor,isRotation,MONEY,trianglePositions,kind,PUSH_POT,isPush,judgePush8} from './rules.js'
+import {other,remaining as countLeft,nearestPocket,validCueSpot,judgeShot,opposite,normalizeGroup,modeOf,lowestBall,nineRespot,MODES,isScoreMode,ONE_POCKET,targetFor,isRotation,MONEY,trianglePositions,kind,PUSH_POT,isPush,judgePush8,nextSeat} from './rules.js'
 import {chooseShot} from './ai.js'
 import {freshRackState,snapshotOf,applySnapshot} from './game-state.js'
 import {isGameMessage} from './protocol.js'
@@ -34,7 +34,7 @@ export function rayToRail(x,y,dx,dy){const tx=dx>0?(MAXX-x)/dx:dx<0?(MINX-x)/dx:
 export function bankPath(x,y,dx,dy,bounces=2){const points=[];for(let i=0;i<bounces;i++){const d=rayToRail(x,y,dx,dy),p={x:x+dx*d,y:y+dy*d};points.push(p);if(Math.abs(p.x-MINX)<.1||Math.abs(p.x-MAXX)<.1)dx=-dx;if(Math.abs(p.y-MINY)<.1||Math.abs(p.y-MAXY)<.1)dy=-dy;x=p.x+dx*.05;y=p.y+dy*.05}return points}
 const MAX_ROLL_SECONDS=30
 export class PoolGame{
- constructor(o){Object.assign(this,o);this.mode=modeOf(o.mode);this.house=normalizeHouse(o.house);this.oneShot=isPush(this.mode)&&this.house.oneShot;this.breaker='a';this.scoreTarget=this.mode==='straight'?this.house.straightTo:(this.scoreTarget||targetFor(this.mode));this.spectator=Boolean(o.spectator);this.aimSensitivity=o.aimSensitivity??.3;this.aimStep=(a,p,c)=>aimStep(a,p,c,this.aimSensitivity);this.surface=o.surface||o.renderer.el;this.me=this.host?'a':'b';this.round=1;this.ready=this.practice;this.power.value=45;this.bind();this.resetRack();this.simAt=this.drawnAt=performance.now();this.raf=requestAnimationFrame(t=>this.loop(t));this.predictor=createPredictor();this.predicted=null;if(this.host)this.background=setInterval(()=>{if(typeof document!=='undefined'&&document.hidden)this.advance(performance.now())},250);if(this.practice)this.sync()}
+ constructor(o){Object.assign(this,o);this.mode=modeOf(o.mode);this.house=normalizeHouse(o.house);this.seats=o.seats||['a','b'];this.teams=Boolean(o.teams);this.oneShot=isPush(this.mode)&&this.house.oneShot;this.breaker='a';this.scoreTarget=this.mode==='straight'?this.house.straightTo:(this.scoreTarget||targetFor(this.mode));this.spectator=Boolean(o.spectator);this.aimSensitivity=o.aimSensitivity??.3;this.aimStep=(a,p,c)=>aimStep(a,p,c,this.aimSensitivity);this.surface=o.surface||o.renderer.el;this.me=this.host?'a':'b';this.round=1;this.ready=this.practice;this.power.value=45;this.bind();this.resetRack();this.simAt=this.drawnAt=performance.now();this.raf=requestAnimationFrame(t=>this.loop(t));this.predictor=createPredictor();this.predicted=null;if(this.host)this.background=setInterval(()=>{if(typeof document!=='undefined'&&document.hidden)this.advance(performance.now())},250);if(this.practice)this.sync()}
  // ---- Rogue Pool (see rogue.js) ----
  // the cue ball on the head spot, and the balls of this table of the run
  rogueRack(keep){
@@ -122,7 +122,7 @@ export class PoolGame{
   if(!this.chal||this.chal.over||this.over)return
   if(this.phase==='aim'&&timedOut(this.chal,performance.now()))this.endChallenge()
  }
- resetRack(){Object.assign(this,freshRackState(this.mode));if(isPush(this.mode)&&this.house?.cannon)this.push={...this.push,a:{...this.push.a,items:['cannon']},b:{...this.push.b,items:['cannon']}};
+ resetRack(){Object.assign(this,freshRackState(this.mode,this.seats));if(isPush(this.mode)&&this.house?.cannon)this.push={...this.push,...Object.fromEntries(this.seats.map(p=>[p,{...this.push[p],items:['cannon']}]))};
   // obstacle tables are for practice, hot-seat and puzzles; the scored challenge games and Rogue Pool keep a clear cloth
   setObstacles(presetItems(this.drill?this.drill.obs:(this.rogueSeed!=null||this.challenge||this.mode==='chaos'||isPush(this.mode))?null:this.obstacles));this.lastCoach=null;if(this.drill){this.balls=buildBalls(this.drill);this.breakShot=false;this.attempts=0;this.drillOutcome=null;this.hinted=false;clearTimeout(this.retryTimer)};this.fx=null;if(this.mode==='chaos')this.fx=drawTwist(this.balls);if(this.rogueSeed!=null){this.run=newRogueRun(this.rogueSeed);this.chal={id:'rogue',over:false};this.rogueWait=false;this.breakShot=false;this.balls=this.rogueRack()};if(this.challenge){this.chal=beginChallenge(this.challenge);this.breakShot=false;this.balls=this.challengeRack()};this.rec=null;this.lastReplay=null;this.replay=null;this.onReplay?.(null);this.shots={a:0,b:0};this.angle=openingAim(this.balls);this.pointerAngle=this.angle;this.aiming=this.me==='a';this.setSpin(0,0)}
  bind(){this.unbindInput=bindGameInput(this)} point(e){return this.renderer.point(e)}
@@ -266,7 +266,7 @@ export class PoolGame{
   this.me=this.turn
   if(this.lastTurn!==this.turn){const first=this.lastTurn==null;this.lastTurn=this.turn;if(!first&&!this.over)this.onTurn?.(this.nameOf(this.turn))}
  }
- nameOf(p){return this.names?.[p]||(p==='a'?'Player 1':'Player 2')}
+ nameOf(p){return this.names?.[p]||'Player '+('abcdef'.indexOf(p)+1)}
  tag(p,fallback){return this.hotSeat?this.nameOf(p).toUpperCase():fallback}
  // The status lines are written for one player against an opponent; two players sharing
  // a device need them in the third person.
@@ -764,7 +764,7 @@ export class PoolGame{
  foul(reason){
   const cue=this.balls[0],hit=this.firstHit?.k,bih=normalizeHouse(this.house).ballInHand
   const wasOn=cue.on
-  clearMotion(cue);this.setSpin(0,0);this.placed=false;this.turn=other(this.turn);this.calledPocket=null
+  clearMotion(cue);this.setSpin(0,0);this.placed=false;this.turn=nextSeat(this.seats,this.turn);this.calledPocket=null
   if(bih==='none'){
    if(!wasOn){cue.on=true;cue.x=154;cue.y=190;for(let x=154;x>=MINX&&this.balls.some(b=>b!==cue&&b.on&&Math.hypot(b.x-x,b.y-190)<2*R);x-=R)cue.x=x-R}
    this.ballInHand=false
@@ -916,8 +916,25 @@ export class PoolGame{
   }else if(v.wasted.length)this.flash(this.mode==='bank'?`No bank · ball ${v.wasted[0]} does not count`:`Wrong pocket · ball ${v.wasted[0]} does not count`)
  }
  // Bank pool and one-pocket: a score, and what counts, instead of groups.
+ // a party's status line: everyone's points, the player to shoot marked
+ partyText(){
+  const tag=p=>(p===this.turn?'▶ ':'')+this.nameOf(p).toUpperCase()+' '+(this.score?.[p]||0)
+  return this.seats.map(tag).join(' · ')+' · FIRST TO '+(this.scoreTarget||targetFor(this.mode))+(this.teams?' · TEAMS':'')
+ }
  updateScoreHud(){
   const a=this.score?.a||0,b=this.score?.b||0
+  if(this.seats.length>2){
+   // a party: everyone's points, the player to shoot marked
+   renderPushPanel(this)
+   const text=this.partyText()
+   if(this.groupStatus&&this.groupStatus.textContent!==text){this.groupStatus.textContent=text;this.groupStatus.className=''}
+   this.shoot.disabled=!this.canAim()||!this.aiming
+   const live=this.canControl()&&!this.ballInHand
+   if(this.moveCue)this.moveCue.hidden=!(live&&this.placed)
+   if(this.changePocket)this.changePocket.hidden=true
+   this.status.textContent=this.over?this.hotStatus(''):this.hotStatus(this.ballInHand?'Ball in hand · tap table to place cue':'Your shot · pot for points, grab gems and items')
+   return
+  }
   const nm=p=>this.hotSeat?this.nameOf(p).toUpperCase():p===this.me?'YOU':this.practice?'AI':'THEM'
   const me=this.hotSeat?this.turn:this.me,opp=other(me)
   renderPushPanel(this)
@@ -1024,3 +1041,6 @@ export class PoolGame{
  }
  destroy(){this.pushPanel?.remove();this.pushPanel=null;setObstacles([]);clearTimeout(this.retryTimer);cancelAnimationFrame(this.raf);clearInterval(this.background);clearTimeout(this.ft);this.unbindInput?.()}
 }
+
+// two seats unless a party says otherwise (a game built without a constructor, as the tests do, gets them too)
+PoolGame.prototype.seats=["a","b"]

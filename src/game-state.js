@@ -3,11 +3,11 @@ import {freshPush} from './push/state.js'
 
 // Authoritative, renderer-free match state. The controller owns timing and
 // input; this module owns the fields that can cross the network.
-export function freshRackState(mode='8ball'){
+export function freshRackState(mode='8ball',seats=['a','b']){
  mode=modeOf(mode)
  return {mode,balls:rack(mode),turn:'a',phase:'aim',over:false,result:'',finished:false,
   aiming:false,groups:{a:null,b:null},assignment:null,breakShot:true,
-  calledPocket:null,ballInHand:false,placed:false,score:{a:0,b:0},...(isPush(mode)?{push:freshPush()}:{})}
+  calledPocket:null,ballInHand:false,placed:false,score:Object.fromEntries(seats.map(p=>[p,0])),...(isPush(mode)?{push:freshPush(seats)}:{})}
 }
 
 // One decimal place for motion, whole units for position: position only
